@@ -3,99 +3,61 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 
-# Configuración de la página
-st.set_page_config(
-    page_title="Miocuantificación por Ecografía",
-    page_icon="🩺",
-    layout="wide"
-)
+# Configuración de página
+st.set_page_config(page_title="Ecografía Pro", layout="centered")
 
-# Estilo personalizado CSS
-st.markdown("""
-    <style>
-    .main { background-color: #f8f9fa; }
-    .stMetric { background-color: #ffffff; padding: 15px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-    </style>
-""", unsafe_allow_html=True)
+st.title("🩺 Análisis Ecográfico")
 
-st.title("🩺 Análisis de Ecogenicidad Muscular y Subcutánea")
-st.subheader("Herramienta de Cuantificación para Estimación de Calidad Muscular")
-
-st.markdown("---")
-
-# Cargar imagen en el panel lateral
-uploaded_file = st.sidebar.file_uploader("Cargar Ecografía (PNG, JPG)", type=["png", "jpg", "jpeg"])
+# 1. Carga de archivo (esto siempre debe ir primero)
+uploaded_file = st.file_uploader("Sube tu ecografía aquí", type=["png", "jpg", "jpeg"])
 
 if uploaded_file is not None:
-    # Leer la imagen
+    # Procesar imagen
     file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
     img_gray = cv2.imdecode(file_bytes, cv2.IMREAD_GRAYSCALE)
     h, w = img_gray.shape
 
-    st.sidebar.header("📐 Selección de ROIs")
+    # --- CONTROLES DE AJUSTE ---
+    st.subheader("⚙️ Ajuste de Regiones (ROIs)")
     
-    # Controles para ROI Subcutánea
-    st.sidebar.subheader("Grasa Subcutánea (Roja)")
-    sub_y = st.sidebar.slider("Posición Y (Subcutáneo)", 0, h, (int(h*0.1), int(h*0.3)))
-    sub_x = st.sidebar.slider("Posición X (Subcutáneo)", 0, w, (int(w*0.2), int(w*0.8)))
+    col_sub, col_mus = st.columns(2)
+    
+    with col_sub:
+        st.write("🔴 **Grasa Subcutánea**")
+        sub_y = st.slider("Altura Y", 0, h, (int(h*0.1), int(h*0.3)), key="sub_y")
+        sub_x = st.slider("Ancho X", 0, w, (int(w*0.2), int(w*0.8)), key="sub_x")
+    
+    with col_mus:
+        st.write("🔵 **Músculo**")
+        mus_y = st.slider("Altura Y", 0, h, (int(h*0.5), int(h*0.8)), key="mus_y")
+        mus_x = st.slider("Ancho X", 0, w, (int(w*0.2), int(w*0.8)), key="mus_x")
 
-    # Controles para ROI Muscular
-    st.sidebar.subheader("Vientre Muscular (Azul)")
-    mus_y = st.sidebar.slider("Posición Y (Músculo)", 0, h, (int(h*0.5), int(h*0.8)))
-    mus_x = st.sidebar.slider("Posición X (Músculo)", 0, w, (int(w*0.2), int(w*0.8)))
+    # --- VISUALIZACIÓN ---
+    st.write("---")
+    st.subheader("🖼️ Vista Previa")
+    
+    img_color = cv2.cvtColor(img_gray, cv2.COLOR_GRAY2BGR)
+    
+    # Dibujar recuadros
+    cv2.rectangle(img_color, (sub_x[0], sub_y[0]), (sub_x[1], sub_y[1]), (255, 0, 0), 3) # Rojo
+    cv2.rectangle(img_color, (mus_x[0], mus_y[0]), (mus_x[1], mus_y[1]), (0, 0, 255), 3) # Azul
+    
+    st.image(img_color, channels="BGR", use_container_width=True)
 
-    # Extraer recortes
+    # --- RESULTADOS ---
     sub_crop = img_gray[sub_y[0]:sub_y[1], sub_x[0]:sub_x[1]]
     mus_crop = img_gray[mus_y[0]:mus_y[1], mus_x[0]:mus_x[1]]
-
-    # Cálculos estadísticos
-    mean_sub = np.mean(sub_crop) if sub_crop.size > 0 else 0.0
-    std_sub = np.std(sub_crop) if sub_crop.size > 0 else 0.0
     
-    mean_mus = np.mean(mus_crop) if mus_crop.size > 0 else 0.0
-    std_mus = np.std(mus_crop) if mus_crop.size > 0 else 0.0
+    mean_sub = np.mean(sub_crop) if sub_crop.size > 0 else 0
+    mean_mus = np.mean(mus_crop) if mus_crop.size > 0 else 0
+    ratio = (mean_mus / mean_sub) if mean_sub > 0 else 0
 
-    ratio_ms = (mean_mus / mean_sub) if mean_sub > 0 else 0.0
-
-    # Panel de métricas
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Grasa Subcutánea (EI)", f"{mean_sub:.1f}", f"Std: ±{std_sub:.1f}")
-    col2.metric("Vientre Muscular (EI)", f"{mean_mus:.1f}", f"Std: ±{std_mus:.1f}")
-    
-    # Estado de la relación M/S
-    delta_color = "normal" if ratio_ms < 0.7 else "inverse"
-    col3.metric("Ratio Músculo / Subcutáneo", f"{ratio_ms:.2f}", 
-                "Normal (< 0.70)" if ratio_ms < 0.7 else "Elevado (Posible infiltración)", 
-                delta_color=delta_color)
-
-    st.markdown("---")
-
-    # Visualización gráfica
-    col_left, col_right = st.columns(2)
-
-    with col_left:
-        st.write("### 🖼️ Imagen con Regiones de Interés (ROIs)")
-        img_color = cv2.cvtColor(img_gray, cv2.COLOR_GRAY2BGR)
-        
-        # Dibujar rectángulos
-        cv2.rectangle(img_color, (sub_x[0], sub_y[0]), (sub_x[1], sub_y[1]), (255, 0, 0), 2)
-        cv2.rectangle(img_color, (mus_x[0], mus_y[0]), (mus_x[1], mus_y[1]), (0, 0, 255), 2)
-        
-        st.image(img_color, channels="BGR", use_container_width=True)
-
-    with col_right:
-        st.write("### 📊 Histogramas de Ecogenicidad")
-        fig, ax = plt.subplots(figsize=(6, 4))
-        if sub_crop.size > 0:
-            ax.hist(sub_crop.ravel(), bins=256, range=[0, 256], color='red', alpha=0.5, label=f'Subcutáneo ({mean_sub:.1f})')
-        if mus_crop.size > 0:
-            ax.hist(mus_crop.ravel(), bins=256, range=[0, 256], color='blue', alpha=0.5, label=f'Músculo ({mean_mus:.1f})')
-        
-        ax.set_xlim([0, 255])
-        ax.set_xlabel("Escala de Grises (0 = Negro, 255 = Blanco)")
-        ax.set_ylabel("Frecuencia de Píxeles")
-        ax.legend(loc='upper right')
-        st.pyplot(fig)
+    st.write("---")
+    st.subheader("📊 Resultados")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Grasa", f"{mean_sub:.1f}")
+    c2.metric("Músculo", f"{mean_mus:.1f}")
+    c3.metric("Ratio M/S", f"{ratio:.2f}")
 
 else:
-    st.info("👈 Para comenzar, despliega la barra lateral e ingresa una imagen ecográfica.")
+    st.info("👆 Por favor, sube una imagen para comenzar el análisis.")
