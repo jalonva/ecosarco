@@ -2,7 +2,6 @@ import streamlit as st
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
-from PIL import Image
 
 # Configuración de la página
 st.set_page_config(
@@ -24,11 +23,11 @@ st.subheader("Herramienta de Cuantificación para Estimación de Calidad Muscula
 
 st.markdown("---")
 
-# Cargar imagen
+# Cargar imagen en el panel lateral
 uploaded_file = st.sidebar.file_uploader("Cargar Ecografía (PNG, JPG)", type=["png", "jpg", "jpeg"])
 
 if uploaded_file is not None:
-    # Convertir imagen cargada
+    # Leer la imagen
     file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
     img_gray = cv2.imdecode(file_bytes, cv2.IMREAD_GRAYSCALE)
     h, w = img_gray.shape
@@ -50,13 +49,13 @@ if uploaded_file is not None:
     mus_crop = img_gray[mus_y[0]:mus_y[1], mus_x[0]:mus_x[1]]
 
     # Cálculos estadísticos
-    mean_sub = np.mean(sub_crop) if sub_crop.size > 0 else 0
-    std_sub = np.std(sub_crop) if sub_crop.size > 0 else 0
+    mean_sub = np.mean(sub_crop) if sub_crop.size > 0 else 0.0
+    std_sub = np.std(sub_crop) if sub_crop.size > 0 else 0.0
     
-    mean_mus = np.mean(mus_crop) if mus_crop.size > 0 else 0
-    std_mus = np.std(mus_crop) if mus_crop.size > 0 else 0
+    mean_mus = np.mean(mus_crop) if mus_crop.size > 0 else 0.0
+    std_mus = np.std(mus_crop) if mus_crop.size > 0 else 0.0
 
-    ratio_ms = mean_mus / mean_sub if mean_sub > 0 else 0
+    ratio_ms = (mean_mus / mean_sub) if mean_sub > 0 else 0.0
 
     # Panel de métricas
     col1, col2, col3 = st.columns(3)
@@ -82,7 +81,7 @@ if uploaded_file is not None:
         cv2.rectangle(img_color, (sub_x[0], sub_y[0]), (sub_x[1], sub_y[1]), (255, 0, 0), 2)
         cv2.rectangle(img_color, (mus_x[0], mus_y[0]), (mus_x[1], mus_y[1]), (0, 0, 255), 2)
         
-        st.image(img_color, channels="BGR", use_column_width=True)
+        st.image(img_color, channels="BGR", use_container_width=True)
 
     with col_right:
         st.write("### 📊 Histogramas de Ecogenicidad")
@@ -99,5 +98,4 @@ if uploaded_file is not None:
         st.pyplot(fig)
 
 else:
-    st.info("👈 Para comenzar, sube una imagen ecográfica usando el panel lateral.")
-mil
+    st.info("👈 Para comenzar, despliega la barra lateral e ingresa una imagen ecográfica.")
