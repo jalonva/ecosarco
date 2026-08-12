@@ -4,14 +4,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Configuración de página
-st.set_page_config(page_title="EcoSarcopenia Pro - Informe Clínico", layout="centered")
+st.set_page_config(page_title="EcoSarcopenia Pro", layout="centered")
 
 st.title("🩺 Valoración Ecográfica Nutricional")
-st.markdown("Herramienta de cuantificación rápida y generación de informe clínico consolidado.")
+st.markdown("Herramienta de cuantificación rápida con guía de ejes y coordenadas.")
 
 st.markdown("---")
 
-# Inicializar el estado de la sesión para guardar mediciones
+# Inicializar el estado de la sesión
 if "informe" not in st.session_state:
     st.session_state.informe = {}
 
@@ -36,26 +36,40 @@ if uploaded_file is not None:
     img_gray = cv2.imdecode(file_bytes, cv2.IMREAD_GRAYSCALE)
     h, w = img_gray.shape
 
-    st.subheader("🖼️ Ajuste de Regiones (ROIs)")
-    img_color = cv2.cvtColor(img_gray, cv2.COLOR_GRAY2BGR)
+    st.subheader("🖼️ Ajuste de Regiones con Guía de Coordenadas")
 
-    # Controles
+    # Controles en 2 columnas
     col_sub, col_mus = st.columns(2)
     with col_sub:
-        st.write("🔴 **Tejido Subcutáneo (Grasa)**")
-        sub_y = st.slider("Posición Y (Grasa)", 0, h, (int(h*0.1), int(h*0.3)), key=f"sub_y_{region}")
-        sub_x = st.slider("Posición X (Grasa)", 0, w, (int(w*0.2), int(w*0.8)), key=f"sub_x_{region}")
+        st.write(f"🔴 **Grasa Subcutánea** *(Límite máx Y: {h}, X: {w})*")
+        sub_y = st.slider("Altura Y (Grasa)", 0, h, (int(h*0.1), int(h*0.3)), key=f"sub_y_{region}")
+        sub_x = st.slider("Ancho X (Grasa)", 0, w, (int(w*0.2), int(w*0.8)), key=f"sub_x_{region}")
     
     with col_mus:
-        st.write("🔵 **Tejido Muscular / Profundo**")
-        mus_y = st.slider("Posición Y (Músculo/Visceral)", 0, h, (int(h*0.5), int(h*0.8)), key=f"mus_y_{region}")
-        mus_x = st.slider("Posición X (Músculo/Visceral)", 0, w, (int(w*0.2), int(w*0.8)), key=f"mus_x_{region}")
+        st.write(f"🔵 **Músculo / Profundo** *(Límite máx Y: {h}, X: {w})*")
+        mus_y = st.slider("Altura Y (Músculo)", 0, h, (int(h*0.5), int(h*0.8)), key=f"mus_y_{region}")
+        mus_x = st.slider("Ancho X (Músculo)", 0, w, (int(w*0.2), int(w*0.8)), key=f"mus_x_{region}")
 
-    # Dibujar recuadros
+    # DIBUJAR RECUADROS Y ETIQUETAS
+    img_color = cv2.cvtColor(img_gray, cv2.COLOR_GRAY2BGR)
+    
+    # Dibujar recuadro Grasa (Rojo) + Texto de coordenadas
     cv2.rectangle(img_color, (sub_x[0], sub_y[0]), (sub_x[1], sub_y[1]), (255, 0, 0), 3)
-    cv2.rectangle(img_color, (mus_x[0], mus_y[0]), (mus_x[1], mus_y[1]), (0, 0, 255), 3)
+    cv2.putText(img_color, f"Grasa [Y:{sub_y[0]}-{sub_y[1]}]", (sub_x[0], max(15, sub_y[0]-8)), 
+                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
 
-    st.image(img_color, channels="BGR", use_container_width=True)
+    # Dibujar recuadro Músculo (Azul) + Texto de coordenadas
+    cv2.rectangle(img_color, (mus_x[0], mus_y[0]), (mus_x[1], mus_y[1]), (0, 0, 255), 3)
+    cv2.putText(img_color, f"Musculo [Y:{mus_y[0]}-{mus_y[1]}]", (mus_x[0], max(15, mus_y[0]-8)), 
+                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+
+    # GENERAR IMAGEN CON REGLA / EJES NUMÉRICOS USANDO MATPLOTLIB
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.imshow(cv2.cvtColor(img_color, cv2.COLOR_BGR2RGB))
+    ax.set_xlabel("Eje X (Ancho en Píxeles)")
+    ax.set_ylabel("Eje Y (Profundidad en Píxeles)")
+    ax.grid(True, color='white', linestyle='--', alpha=0.3) # Cuadrícula de guía
+    st.pyplot(fig)
 
     # Cálculos
     sub_crop = img_gray[sub_y[0]:sub_y[1], sub_x[0]:sub_x[1]]
@@ -67,31 +81,27 @@ if uploaded_file is not None:
 
     st.markdown("---")
 
-    # Resultados puntuales
+    # Resultados
     st.subheader("📊 Resultados de esta Toma")
     c1, c2, c3 = st.columns(3)
     c1.metric("Grasa Subcutánea", f"{mean_sub:.1f}")
     c2.metric("Músculo / Profundo", f"{mean_mus:.1f}")
     c3.metric("Ratio M/S", f"{ratio:.2f}")
 
-    # Botón para guardar medición en el informe
     if st.button("💾 Guardar esta medición en el Informe Final"):
         st.session_state.informe[region] = {
             "Grasa": round(mean_sub, 1),
             "Músculo": round(mean_mus, 1),
             "Ratio": round(ratio, 2)
         }
-        st.success(f"✅ Medición de **{region}** guardada correctamente en el informe.")
+        st.success(f"✅ Medición de **{region}** guardada correctamente.")
 
 st.markdown("---")
 
-# 3. SECCIÓN DEL INFORME FINAL ACUMULADO
+# SECCIÓN DEL INFORME CONSOLIDADO
 st.header("📋 INFORME CLÍNICO CONSOLIDADO")
 
 if st.session_state.informe:
-    st.write("### Resumen de Regiones Evaluadas:")
-    
-    # Crear una tabla visual de resumen
     tabla_datos = []
     for reg, datos in st.session_state.informe.items():
         estado = "Conservado" if datos["Ratio"] < 0.7 else ("Moderado" if datos["Ratio"] < 1.0 else "Elevado")
@@ -105,24 +115,9 @@ if st.session_state.informe:
     
     st.table(tabla_datos)
 
-    # Conclusión Diagnóstica Global Automática
-    st.subheader("💡 Orientación Diagnóstica Global")
-    
-    ratios_elevados = sum(1 for d in st.session_state.informe.values() if d["Ratio"] >= 0.7)
-    total_medidos = len(st.session_state.informe)
-    
-    if ratios_elevados == 0:
-        st.success("✅ **Ecosarcopenia Negativa:** Calidad muscular y distribución grasa adecuadamente conservadas en todas las regiones evaluadas.")
-    elif ratios_elevados == total_medidos:
-        st.error("🚨 **Sarcopenia / Miosteatosis Generalizada:** Elevada eco-intensidad generalizada. Se sugiere intervención nutricional y de ejercicio de fuerza.")
-    else:
-        st.warning("⚠️ **Afectación Muscular Regional / Focal:** Existen áreas con sospecha de infiltración grasa o atrofia. Revisar los puntos marcados como 'Moderado' o 'Elevado'.")
-
-    # Botón para reiniciar para el siguiente paciente
     if st.button("🗑️ Limpiar datos y comenzar nuevo paciente"):
         st.session_state.informe = {}
         st.rerun()
 
 else:
-    st.info("Aún no has guardado ninguna medición. Selecciona un músculo arriba, ajusta la toma y pulsa 'Guardar esta medición en el Informe Final'.")
-   
+    st.info("Aún no has guardado ninguna medición. Selecciona un músculo arriba y pulsa 'Guardar esta medición'.")
