@@ -116,7 +116,82 @@ if uploaded_file is not None:
 st.markdown("---")
 
 # ==============================================================================
-# SECCIÓN DEL INFORME CLÍNICO CONSOLIDADO (SEPARACIÓN MUSCULAR / VISCERAL)
+# FUNCIÓN GENERADORA DEL PDF CLINICO
+# ==============================================================================
+def generar_pdf(informe_dict, avg_sub, avg_mus, avg_ratio, conclusion_muscular, info_visceral):
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
+    story = []
+    
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle('TitleStyle', parent=styles['Heading1'], fontSize=16, textColor=colors.HexColor('#1A365D'), spaceAfter=8)
+    subtitle_style = ParagraphStyle('SubTitleStyle', parent=styles['Heading2'], fontSize=11, textColor=colors.HexColor('#2B6CB0'), spaceAfter=6)
+    body_style = ParagraphStyle('BodyStyle', parent=styles['Normal'], fontSize=9, leading=13, textColor=colors.HexColor('#2D3748'))
+    
+    # Encabezado
+    story.append(Paragraph("INFORME DE VALORACIÓN ECOGRÁFICA NUTRICIONAL", title_style))
+    fecha_str = datetime.now().strftime("%d/%m/%Y %H:%M")
+    story.append(Paragraph(f"<b>Fecha de evaluación:</b> {fecha_str}", body_style))
+    story.append(Spacer(1, 10))
+    story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#CBD5E0'), spaceAfter=10))
+    
+    # 1. Tabla Resumen de mediciones
+    story.append(Paragraph("1. Desglose de Mediciones Ecográficas", subtitle_style))
+    data = [["Región / Área", "Capa Sup. (EI)", "Capa Prof. (EI)", "Ratio P/S", "Estado"]]
+    
+    for reg, datos in informe_dict.items():
+        estado = "Conservado" if datos["Ratio"] < 0.7 else ("Moderado" if datos["Ratio"] < 1.0 else "Elevado")
+        data.append([reg, str(datos["Grasa"]), str(datos["Músculo"]), str(datos["Ratio"]), estado])
+        
+    t = Table(data, colWidths=[180, 80, 80, 70, 90])
+    t.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2B6CB0')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 8),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 5),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#E2E8F0')),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F7FAFC')])
+    ]))
+    story.append(t)
+    story.append(Spacer(1, 15))
+    
+    # 2. Conclusión Muscular (Sarcopenia / Miosteatosis)
+    story.append(Paragraph("2. Evaluación de Calidad Muscular Global (Sarcopenia / Miosteatosis)", subtitle_style))
+    if avg_ratio is not None:
+        data_sumario = [
+            ["Media Grasa Subcutánea", "Media Ecogenicidad Muscular", "Ratio M/S Global Promedio"],
+            [f"{avg_sub:.1f}", f"{avg_mus:.1f}", f"{avg_ratio:.2f}"]
+        ]
+        t_sumario = Table(data_sumario, colWidths=[160, 170, 170])
+        t_sumario.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#EDF2F7')),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CBD5E0')),
+        ]))
+        story.append(t_sumario)
+        story.append(Spacer(1, 8))
+        story.append(Paragraph(f"<b>Diagnóstico Muscular:</b> {conclusion_muscular}", body_style))
+    else:
+        story.append(Paragraph("<i>No se registraron mediciones de tejido muscular para promediar.</i>", body_style))
+        
+    story.append(Spacer(1, 15))
+    
+    # 3. Conclusión Grasa Visceral
+    story.append(Paragraph("3. Valoración Adiposidad Abdominal / Visceral", subtitle_style))
+    if info_visceral:
+        story.append(Paragraph(f"<b>Diagnóstico Cardiometabólico:</b> {info_visceral}", body_style))
+    else:
+        story.append(Paragraph("<i>No se evaluó la grasa visceral/abdominal en esta sesión.</i>", body_style))
+    
+    doc.build(story)
+    buffer.seek(0)
+    return buffer
+
+# ==============================================================================
+# SECCIÓN DEL INFORME CLÍNICO CONSOLIDADO
 # ==============================================================================
 st.header("📋 INFORME CLÍNICO CONSOLIDADO")
 
@@ -139,7 +214,11 @@ if st.session_state.informe:
         })
     st.table(tabla_datos)
 
-    # 1. EVALUACIÓN DE MASA Y CALIDAD MUSCULAR (PROMEDIO EXCLUSIVO DE MÚSCULOS)
+    # VARIABLES PARA EL PDF
+    avg_sub, avg_mus, avg_ratio, conclusion_muscular = None, None, None, ""
+    info_visceral_txt = ""
+
+    # 1. EVALUACIÓN DE MASA Y CALIDAD MUSCULAR
     if mediciones_musculo:
         st.subheader("🦾 1. VALORACIÓN MUSCULAR GLOBAL (Excluye Grasa Visceral)")
         avg_sub = np.mean([d["Grasa"] for d in mediciones_musculo.values()])
@@ -154,11 +233,14 @@ if st.session_state.informe:
         col_g3.metric("Ratio M/S Promedio Muscular", f"{avg_ratio:.2f}", diag_global_text)
 
         if avg_ratio < 0.7:
-            st.success(f"✅ **Calidad Muscular Conservada (Score: {avg_ratio:.2f}):** Ausencia de signos ecográficos significativos de miosteatosis o ecosarcopenia en los músculos evaluados.")
+            conclusion_muscular = f"Calidad Muscular Conservada (Score: {avg_ratio:.2f}): Ausencia de signos ecográficos significativos de miosteatosis o ecosarcopenia."
+            st.success(f"✅ **{conclusion_muscular}**")
         elif 0.7 <= avg_ratio < 1.0:
-            st.warning(f"⚠️ **Infiltración Grasa Moderada (Score: {avg_ratio:.2f}):** Aumento leve/moderado de ecogenicidad en tejido muscular.")
+            conclusion_muscular = f"Infiltración Grasa Moderada (Score: {avg_ratio:.2f}): Aumento leve/moderado de ecogenicidad en tejido muscular."
+            st.warning(f"⚠️ **{conclusion_muscular}**")
         else:
-            st.error(f"🚨 **Miosteatosis / Atrofia Muscular Severa (Score: {avg_ratio:.2f}):** Elevada reflectividad muscular generalizada.")
+            conclusion_muscular = f"Miosteatosis / Atrofia Muscular Severa (Score: {avg_ratio:.2f}): Elevada reflectividad muscular generalizada."
+            st.error(f"🚨 **{conclusion_muscular}**")
 
     # 2. EVALUACIÓN INDEPENDIENTE DE GRASA ABDOMINAL/VISCERAL
     if medicion_visceral:
@@ -168,11 +250,27 @@ if st.session_state.informe:
             r_visc = datos["Ratio"]
             st.write(f"**Grasa Profunda/Subcutánea Abdominal:** {r_visc:.2f}")
             if r_visc > 1.0:
-                st.error("🚨 **Predominio de Adiposidad Visceral Profunda:** Elevado riesgo cardiometabólico. Se sugiere abordar mediante dieta y reestructuración metabólica.")
+                info_visceral_txt = f"Predominio de Adiposidad Visceral Profunda (Ratio: {r_visc:.2f}): Elevado riesgo cardiometabólico. Se sugiere reestructuración nutricional."
+                st.error(f"🚨 **{info_visceral_txt}**")
             else:
-                st.info("ℹ️ **Distribución Subcutánea Predominante:** Acumulación adiposa superficial sin exceso marcado de depósito visceral profundo.")
+                info_visceral_txt = f"Distribución Subcutánea Predominante (Ratio: {r_visc:.2f}): Acumulación adiposa superficial sin exceso marcado de depósito visceral profundo."
+                st.info(f"ℹ️ **{info_visceral_txt}**")
 
     st.markdown("---")
+    
+    # BOTÓN DE GENERACIÓN Y DESCARGA DE PDF
+    pdf_bytes = generar_pdf(st.session_state.informe, avg_sub, avg_mus, avg_ratio, conclusion_muscular, info_visceral_txt)
+    
+    st.download_button(
+        label="📥 DESCARGAR INFORME CLÍNICO EN PDF",
+        data=pdf_bytes,
+        file_name=f"Informe_Ecografico_{datetime.now().strftime('%Y%m%d')}.pdf",
+        mime="application/pdf",
+        type="primary",
+        use_container_width=True
+    )
+
+    st.write("")
     if st.button("🗑️ Limpiar datos y comenzar nuevo paciente", use_container_width=True):
         st.session_state.informe = {}
         st.rerun()
