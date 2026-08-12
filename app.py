@@ -7,11 +7,11 @@ import matplotlib.pyplot as plt
 st.set_page_config(page_title="EcoSarcopenia Pro", layout="centered")
 
 st.title("🩺 Valoración Ecográfica Nutricional")
-st.markdown("Herramienta de cuantificación rápida con guía de ejes y coordenadas.")
+st.markdown("Herramienta de cuantificación rápida para consulta.")
 
 st.markdown("---")
 
-# Inicializar el estado de la sesión
+# Inicializar estado de sesión
 if "informe" not in st.session_state:
     st.session_state.informe = {}
 
@@ -36,40 +36,35 @@ if uploaded_file is not None:
     img_gray = cv2.imdecode(file_bytes, cv2.IMREAD_GRAYSCALE)
     h, w = img_gray.shape
 
-    st.subheader("🖼️ Ajuste de Regiones con Guía de Coordenadas")
+    st.subheader("🖼️ Ajuste de Regiones de Interés (ROIs)")
 
-    # Controles en 2 columnas
+    # Controles deslizantes con información de escala
     col_sub, col_mus = st.columns(2)
     with col_sub:
-        st.write(f"🔴 **Grasa Subcutánea** *(Límite máx Y: {h}, X: {w})*")
-        sub_y = st.slider("Altura Y (Grasa)", 0, h, (int(h*0.1), int(h*0.3)), key=f"sub_y_{region}")
-        sub_x = st.slider("Ancho X (Grasa)", 0, w, (int(w*0.2), int(w*0.8)), key=f"sub_x_{region}")
+        st.write(f"🔴 **Grasa Subcutánea** *(Dimensión total Y:{h}px, X:{w}px)*")
+        sub_y = st.slider("Profundidad Y (Grasa)", 0, h, (int(h*0.1), int(h*0.3)), key=f"sub_y_{region}")
+        sub_x = st.slider("Anchura X (Grasa)", 0, w, (int(w*0.1), int(w*0.9)), key=f"sub_x_{region}")
     
     with col_mus:
-        st.write(f"🔵 **Músculo / Profundo** *(Límite máx Y: {h}, X: {w})*")
-        mus_y = st.slider("Altura Y (Músculo)", 0, h, (int(h*0.5), int(h*0.8)), key=f"mus_y_{region}")
-        mus_x = st.slider("Ancho X (Músculo)", 0, w, (int(w*0.2), int(w*0.8)), key=f"mus_x_{region}")
+        st.write(f"🔵 **Músculo / Profundo** *(Dimensión total Y:{h}px, X:{w}px)*")
+        mus_y = st.slider("Profundidad Y (Músculo)", 0, h, (int(h*0.4), int(h*0.7)), key=f"mus_y_{region}")
+        mus_x = st.slider("Anchura X (Músculo)", 0, w, (int(w*0.1), int(w*0.9)), key=f"mus_x_{region}")
 
-    # DIBUJAR RECUADROS Y ETIQUETAS
+    # DIBUJAR RECUADROS Y TEXTO DIRECTO SOBRE LA IMAGEN
     img_color = cv2.cvtColor(img_gray, cv2.COLOR_GRAY2BGR)
     
-    # Dibujar recuadro Grasa (Rojo) + Texto de coordenadas
-    cv2.rectangle(img_color, (sub_x[0], sub_y[0]), (sub_x[1], sub_y[1]), (255, 0, 0), 3)
-    cv2.putText(img_color, f"Grasa [Y:{sub_y[0]}-{sub_y[1]}]", (sub_x[0], max(15, sub_y[0]-8)), 
-                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
+    # Recuadro Grasa (Rojo)
+    cv2.rectangle(img_color, (sub_x[0], sub_y[0]), (sub_x[1], sub_y[1]), (255, 0, 0), 2)
+    cv2.putText(img_color, f"Grasa Y:{sub_y[0]}-{sub_y[1]}", (sub_x[0], max(20, sub_y[0]-5)), 
+                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
 
-    # Dibujar recuadro Músculo (Azul) + Texto de coordenadas
-    cv2.rectangle(img_color, (mus_x[0], mus_y[0]), (mus_x[1], mus_y[1]), (0, 0, 255), 3)
-    cv2.putText(img_color, f"Musculo [Y:{mus_y[0]}-{mus_y[1]}]", (mus_x[0], max(15, mus_y[0]-8)), 
-                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+    # Recuadro Músculo (Azul)
+    cv2.rectangle(img_color, (mus_x[0], mus_y[0]), (mus_x[1], mus_y[1]), (0, 0, 255), 2)
+    cv2.putText(img_color, f"Musculo Y:{mus_y[0]}-{mus_y[1]}", (mus_x[0], max(20, mus_y[0]-5)), 
+                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
 
-    # GENERAR IMAGEN CON REGLA / EJES NUMÉRICOS USANDO MATPLOTLIB
-    fig, ax = plt.subplots(figsize=(8, 5))
-    ax.imshow(cv2.cvtColor(img_color, cv2.COLOR_BGR2RGB))
-    ax.set_xlabel("Eje X (Ancho en Píxeles)")
-    ax.set_ylabel("Eje Y (Profundidad en Píxeles)")
-    ax.grid(True, color='white', linestyle='--', alpha=0.3) # Cuadrícula de guía
-    st.pyplot(fig)
+    # Mostrar la imagen ecográfica limpia a tamaño completo
+    st.image(img_color, channels="BGR", use_container_width=True)
 
     # Cálculos
     sub_crop = img_gray[sub_y[0]:sub_y[1], sub_x[0]:sub_x[1]]
@@ -81,11 +76,11 @@ if uploaded_file is not None:
 
     st.markdown("---")
 
-    # Resultados
+    # Resultados puntuales
     st.subheader("📊 Resultados de esta Toma")
     c1, c2, c3 = st.columns(3)
-    c1.metric("Grasa Subcutánea", f"{mean_sub:.1f}")
-    c2.metric("Músculo / Profundo", f"{mean_mus:.1f}")
+    c1.metric("Grasa Subcutánea (EI)", f"{mean_sub:.1f}")
+    c2.metric("Músculo / Profundo (EI)", f"{mean_mus:.1f}")
     c3.metric("Ratio M/S", f"{ratio:.2f}")
 
     if st.button("💾 Guardar esta medición en el Informe Final"):
@@ -95,6 +90,21 @@ if uploaded_file is not None:
             "Ratio": round(ratio, 2)
         }
         st.success(f"✅ Medición de **{region}** guardada correctamente.")
+
+    st.markdown("---")
+
+    # HISTOGRAMA INDEPENDIENTE
+    st.subheader("📈 Histograma de Ecogenicidad")
+    fig, ax = plt.subplots(figsize=(7, 3))
+    if sub_crop.size > 0:
+        ax.hist(sub_crop.ravel(), bins=256, range=[0, 256], color='red', alpha=0.5, label=f'Grasa ({mean_sub:.1f})')
+    if mus_crop.size > 0:
+        ax.hist(mus_crop.ravel(), bins=256, range=[0, 256], color='blue', alpha=0.5, label=f'Músculo ({mean_mus:.1f})')
+    ax.set_xlim([0, 255])
+    ax.set_xlabel("Escala de Grises (0 = Negro, 255 = Blanco)")
+    ax.set_ylabel("Frecuencia de Píxeles")
+    ax.legend(loc='upper right')
+    st.pyplot(fig)
 
 st.markdown("---")
 
