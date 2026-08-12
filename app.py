@@ -11,7 +11,7 @@ st.markdown("Herramienta de cuantificación rápida para consulta.")
 
 st.markdown("---")
 
-# Inicializar estado de sesión
+# Inicializar estado de sesión para el informe acumulado
 if "informe" not in st.session_state:
     st.session_state.informe = {}
 
@@ -36,35 +36,33 @@ if uploaded_file is not None:
     img_gray = cv2.imdecode(file_bytes, cv2.IMREAD_GRAYSCALE)
     h, w = img_gray.shape
 
-    st.subheader("🖼️ Ajuste de Regiones de Interés (ROIs)")
+    st.subheader("🖼️ Ajuste de ROIs y Guía de Escala")
 
-    # Controles deslizantes con información de escala
+    # Controles deslizantes
     col_sub, col_mus = st.columns(2)
     with col_sub:
-        st.write(f"🔴 **Grasa Subcutánea** *(Dimensión total Y:{h}px, X:{w}px)*")
-        sub_y = st.slider("Profundidad Y (Grasa)", 0, h, (int(h*0.1), int(h*0.3)), key=f"sub_y_{region}")
-        sub_x = st.slider("Anchura X (Grasa)", 0, w, (int(w*0.1), int(w*0.9)), key=f"sub_x_{region}")
+        st.write("🔴 **Grasa Subcutánea**")
+        sub_y = st.slider("Eje Y (Profundidad)", 0, h, (int(h*0.1), int(h*0.3)), key=f"sub_y_{region}")
+        sub_x = st.slider("Eje X (Ancho)", 0, w, (int(w*0.1), int(w*0.9)), key=f"sub_x_{region}")
     
     with col_mus:
-        st.write(f"🔵 **Músculo / Profundo** *(Dimensión total Y:{h}px, X:{w}px)*")
-        mus_y = st.slider("Profundidad Y (Músculo)", 0, h, (int(h*0.4), int(h*0.7)), key=f"mus_y_{region}")
-        mus_x = st.slider("Anchura X (Músculo)", 0, w, (int(w*0.1), int(w*0.9)), key=f"mus_x_{region}")
+        st.write("🔵 **Músculo / Profundo**")
+        mus_y = st.slider("Eje Y (Profundidad)", 0, h, (int(h*0.4), int(h*0.7)), key=f"mus_y_{region}")
+        mus_x = st.slider("Eje X (Ancho)", 0, w, (int(w*0.1), int(w*0.9)), key=f"mus_x_{region}")
 
-    # DIBUJAR RECUADROS Y TEXTO DIRECTO SOBRE LA IMAGEN
+    # Dibujar recuadros en la imagen OpenCV
     img_color = cv2.cvtColor(img_gray, cv2.COLOR_GRAY2BGR)
-    
-    # Recuadro Grasa (Rojo)
-    cv2.rectangle(img_color, (sub_x[0], sub_y[0]), (sub_x[1], sub_y[1]), (255, 0, 0), 2)
-    cv2.putText(img_color, f"Grasa Y:{sub_y[0]}-{sub_y[1]}", (sub_x[0], max(20, sub_y[0]-5)), 
-                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
+    cv2.rectangle(img_color, (sub_x[0], sub_y[0]), (sub_x[1], sub_y[1]), (255, 0, 0), 3) # Rojo
+    cv2.rectangle(img_color, (mus_x[0], mus_y[0]), (mus_x[1], mus_y[1]), (0, 0, 255), 3) # Azul
 
-    # Recuadro Músculo (Azul)
-    cv2.rectangle(img_color, (mus_x[0], mus_y[0]), (mus_x[1], mus_y[1]), (0, 0, 255), 2)
-    cv2.putText(img_color, f"Musculo Y:{mus_y[0]}-{mus_y[1]}", (mus_x[0], max(20, mus_y[0]-5)), 
-                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
-
-    # Mostrar la imagen ecográfica limpia a tamaño completo
-    st.image(img_color, channels="BGR", use_container_width=True)
+    # MOSTRAR IMAGEN CON REGLA Y EJES GRADUADOS
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.imshow(cv2.cvtColor(img_color, cv2.COLOR_BGR2RGB))
+    ax.set_xlabel("Ancho (Eje X en píxeles)", fontsize=10)
+    ax.set_ylabel("Profundidad (Eje Y en píxeles)", fontsize=10)
+    ax.tick_params(axis='both', which='major', labelsize=9)
+    plt.tight_layout()
+    st.pyplot(fig)
 
     # Cálculos
     sub_crop = img_gray[sub_y[0]:sub_y[1], sub_x[0]:sub_x[1]]
@@ -76,35 +74,37 @@ if uploaded_file is not None:
 
     st.markdown("---")
 
-    # Resultados puntuales
+    # Resultados y Métricas
     st.subheader("📊 Resultados de esta Toma")
     c1, c2, c3 = st.columns(3)
     c1.metric("Grasa Subcutánea (EI)", f"{mean_sub:.1f}")
     c2.metric("Músculo / Profundo (EI)", f"{mean_mus:.1f}")
     c3.metric("Ratio M/S", f"{ratio:.2f}")
 
-    if st.button("💾 Guardar esta medición en el Informe Final"):
+    st.write("")
+    # BOTÓN DESTACADO DE GUARDADO
+    if st.button("💾 GUARDAR MEDICIÓN EN INFORME FINAL", type="primary", use_container_width=True):
         st.session_state.informe[region] = {
             "Grasa": round(mean_sub, 1),
             "Músculo": round(mean_mus, 1),
             "Ratio": round(ratio, 2)
         }
-        st.success(f"✅ Medición de **{region}** guardada correctamente.")
+        st.success(f"✅ Medición de **{region}** guardada en el informe.")
 
     st.markdown("---")
 
     # HISTOGRAMA INDEPENDIENTE
     st.subheader("📈 Histograma de Ecogenicidad")
-    fig, ax = plt.subplots(figsize=(7, 3))
+    fig_hist, ax_hist = plt.subplots(figsize=(7, 3))
     if sub_crop.size > 0:
-        ax.hist(sub_crop.ravel(), bins=256, range=[0, 256], color='red', alpha=0.5, label=f'Grasa ({mean_sub:.1f})')
+        ax_hist.hist(sub_crop.ravel(), bins=256, range=[0, 256], color='red', alpha=0.5, label=f'Grasa ({mean_sub:.1f})')
     if mus_crop.size > 0:
-        ax.hist(mus_crop.ravel(), bins=256, range=[0, 256], color='blue', alpha=0.5, label=f'Músculo ({mean_mus:.1f})')
-    ax.set_xlim([0, 255])
-    ax.set_xlabel("Escala de Grises (0 = Negro, 255 = Blanco)")
-    ax.set_ylabel("Frecuencia de Píxeles")
-    ax.legend(loc='upper right')
-    st.pyplot(fig)
+        ax_hist.hist(mus_crop.ravel(), bins=256, range=[0, 256], color='blue', alpha=0.5, label=f'Músculo ({mean_mus:.1f})')
+    ax_hist.set_xlim([0, 255])
+    ax_hist.set_xlabel("Escala de Grises (0 = Negro, 255 = Blanco)")
+    ax_hist.set_ylabel("Frecuencia de Píxeles")
+    ax_hist.legend(loc='upper right')
+    st.pyplot(fig_hist)
 
 st.markdown("---")
 
@@ -125,9 +125,9 @@ if st.session_state.informe:
     
     st.table(tabla_datos)
 
-    if st.button("🗑️ Limpiar datos y comenzar nuevo paciente"):
+    if st.button("🗑️ Limpiar datos y comenzar nuevo paciente", use_container_width=True):
         st.session_state.informe = {}
         st.rerun()
 
 else:
-    st.info("Aún no has guardado ninguna medición. Selecciona un músculo arriba y pulsa 'Guardar esta medición'.")
+    st.info("Aún no has guardado ninguna medición. Selecciona un músculo arriba, ajusta la toma y pulsa 'GUARDAR MEDICIÓN EN INFORME FINAL'.")
