@@ -1,5 +1,5 @@
 streamlit
 opencv-python-headless
-matplotlib
 numpy
-pillow
+matplotlib
+reportlab
