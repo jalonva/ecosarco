@@ -13,7 +13,7 @@ from reportlab.lib import colors
 st.set_page_config(page_title="EcoSarcopenia Pro", layout="centered")
 
 st.title("🩺 Valoración Ecográfica Nutricional")
-st.markdown("Herramienta de cuantificación rápida y generación de informe clínico consolidado.")
+st.markdown("Herramienta de cuantificación rápida para consulta.")
 
 st.markdown("---")
 
@@ -35,83 +35,92 @@ region = st.selectbox(
 st.markdown("---")
 
 # 2. Carga de archivo
-uploaded_file = st.file_uploader(f"📂 Sube la ecografía para: {region}", type=["png", "jpg", "jpeg"])
+uploaded_file = st.file_uploader(f"📂 Sube la ecografía para: {region}", type=["png", "jpg", "jpeg"], key=f"file_{region}")
 
 if uploaded_file is not None:
-    file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
+    # Decodificación limpia e independiente del archivo subido
+    file_bytes = np.frombuffer(uploaded_file.getvalue(), dtype=np.uint8)
     img_gray = cv2.imdecode(file_bytes, cv2.IMREAD_GRAYSCALE)
-    h, w = img_gray.shape
-
-    st.subheader("🖼️ Ajuste de ROIs y Guía de Escala")
-
-    # Controles deslizantes
-    col_sub, col_mus = st.columns(2)
-    with col_sub:
-        st.write("🔴 **Grasa Subcutánea**")
-        sub_y = st.slider("Eje Y (Profundidad)", 0, h, (int(h*0.1), int(h*0.3)), key=f"sub_y_{region}")
-        sub_x = st.slider("Eje X (Ancho)", 0, w, (int(w*0.1), int(w*0.9)), key=f"sub_x_{region}")
     
-    with col_mus:
-        st.write("🔵 **Músculo / Profundo**")
-        mus_y = st.slider("Eje Y (Profundidad)", 0, h, (int(h*0.4), int(h*0.7)), key=f"mus_y_{region}")
-        mus_x = st.slider("Eje X (Ancho)", 0, w, (int(w*0.1), int(w*0.9)), key=f"mus_x_{region}")
+    # Asegurar que no esté vacía
+    if img_gray is not None:
+        h, w = img_gray.shape
 
-    # Dibujar recuadros
-    img_color = cv2.cvtColor(img_gray, cv2.COLOR_GRAY2BGR)
-    cv2.rectangle(img_color, (sub_x[0], sub_y[0]), (sub_x[1], sub_y[1]), (255, 0, 0), 3) # Rojo
-    cv2.rectangle(img_color, (mus_x[0], mus_y[0]), (mus_x[1], mus_y[1]), (0, 0, 255), 3) # Azul
+        st.subheader("🖼️ Ajuste de ROIs sobre Ecografía Pura")
 
-    # MOSTRAR IMAGEN CON REGLA Y EJES GRADUADOS
-    fig_img, ax_img = plt.subplots(figsize=(8, 5))
-    ax_img.imshow(cv2.cvtColor(img_color, cv2.COLOR_BGR2RGB))
-    ax_img.set_xlabel("Ancho (Eje X en píxeles)", fontsize=10)
-    ax_img.set_ylabel("Profundidad (Eje Y en píxeles)", fontsize=10)
-    ax_img.tick_params(axis='both', which='major', labelsize=9)
-    plt.tight_layout()
-    st.pyplot(fig_img)
+        # Controles deslizantes
+        col_sub, col_mus = st.columns(2)
+        with col_sub:
+            st.write(f"🔴 **Grasa Subcutánea**")
+            sub_y = st.slider("Eje Y (Profundidad)", 0, h, (int(h*0.15), int(h*0.35)), key=f"sub_y_{region}")
+            sub_x = st.slider("Eje X (Ancho)", 0, w, (int(w*0.1), int(w*0.9)), key=f"sub_x_{region}")
+        
+        with col_mus:
+            st.write(f"🔵 **Músculo / Profundo**")
+            mus_y = st.slider("Eje Y (Profundidad)", 0, h, (int(h*0.45), int(h*0.75)), key=f"mus_y_{region}")
+            mus_x = st.slider("Eje X (Ancho)", 0, w, (int(w*0.1), int(w*0.9)), key=f"mus_x_{region}")
 
-    # Cálculos
-    sub_crop = img_gray[sub_y[0]:sub_y[1], sub_x[0]:sub_x[1]]
-    mus_crop = img_gray[mus_y[0]:mus_y[1], mus_x[0]:mus_x[1]]
+        # Crear imagen a color para superponer recuadros
+        img_color = cv2.cvtColor(img_gray, cv2.COLOR_GRAY2BGR)
 
-    mean_sub = np.mean(sub_crop) if sub_crop.size > 0 else 0.0
-    mean_mus = np.mean(mus_crop) if mus_crop.size > 0 else 0.0
-    ratio = (mean_mus / mean_sub) if mean_sub > 0 else 0.0
+        # Regla / Marcas de escala vertical en el lateral izquierdo (Amarillo)
+        paso_y = max(50, int(h / 10))
+        for y_mark in range(0, h, paso_y):
+            cv2.line(img_color, (0, y_mark), (15, y_mark), (0, 255, 255), 2)
+            cv2.putText(img_color, f"{y_mark}", (20, y_mark + 4), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 255), 1)
 
-    st.markdown("---")
+        # Dibujar recuadro Grasa (Rojo)
+        cv2.rectangle(img_color, (sub_x[0], sub_y[0]), (sub_x[1], sub_y[1]), (255, 0, 0), 3)
 
-    # Resultados y Métricas
-    st.subheader("📊 Resultados de esta Toma")
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Grasa Subcutánea (EI)", f"{mean_sub:.1f}")
-    c2.metric("Músculo / Profundo (EI)", f"{mean_mus:.1f}")
-    c3.metric("Ratio M/S", f"{ratio:.2f}")
+        # Dibujar recuadro Músculo (Azul)
+        cv2.rectangle(img_color, (mus_x[0], mus_y[0]), (mus_x[1], mus_y[1]), (0, 0, 255), 3)
 
-    st.write("")
-    if st.button("💾 GUARDAR MEDICIÓN EN INFORME FINAL", type="primary", use_container_width=True):
-        st.session_state.informe[region] = {
-            "Grasa": round(mean_sub, 1),
-            "Músculo": round(mean_mus, 1),
-            "Ratio": round(ratio, 2),
-            "sub_crop": sub_crop,
-            "mus_crop": mus_crop
-        }
-        st.success(f"✅ Medición de **{region}** guardada en el informe.")
+        # Mostrar la imagen nativa LIMPIA y PURE sin capas externas
+        st.image(img_color, channels="BGR", use_container_width=True)
 
-    st.markdown("---")
+        # Recortes para cálculos
+        sub_crop = img_gray[sub_y[0]:sub_y[1], sub_x[0]:sub_x[1]]
+        mus_crop = img_gray[mus_y[0]:mus_y[1], mus_x[0]:mus_x[1]]
 
-    # HISTOGRAMA PUNTUAL DE ESTA TOMA
-    st.subheader("📈 Histograma de esta Toma")
-    fig_hist, ax_hist = plt.subplots(figsize=(7, 3))
-    if sub_crop.size > 0:
-        ax_hist.hist(sub_crop.ravel(), bins=256, range=[0, 256], color='red', alpha=0.5, label=f'Grasa ({mean_sub:.1f})')
-    if mus_crop.size > 0:
-        ax_hist.hist(mus_crop.ravel(), bins=256, range=[0, 256], color='blue', alpha=0.5, label=f'Músculo ({mean_mus:.1f})')
-    ax_hist.set_xlim([0, 255])
-    ax_hist.set_xlabel("Escala de Grises (0 = Negro, 255 = Blanco)")
-    ax_hist.set_ylabel("Frecuencia")
-    ax_hist.legend(loc='upper right')
-    st.pyplot(fig_hist)
+        mean_sub = np.mean(sub_crop) if sub_crop.size > 0 else 0.0
+        mean_mus = np.mean(mus_crop) if mus_crop.size > 0 else 0.0
+        ratio = (mean_mus / mean_sub) if mean_sub > 0 else 0.0
+
+        st.markdown("---")
+
+        # Resultados y Métricas
+        st.subheader("📊 Resultados de esta Toma")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Grasa Subcutánea (EI)", f"{mean_sub:.1f}")
+        c2.metric("Músculo / Profundo (EI)", f"{mean_mus:.1f}")
+        c3.metric("Ratio M/S", f"{ratio:.2f}")
+
+        st.write("")
+        if st.button("💾 GUARDAR MEDICIÓN EN INFORME FINAL", type="primary", use_container_width=True):
+            st.session_state.informe[region] = {
+                "Grasa": round(mean_sub, 1),
+                "Músculo": round(mean_mus, 1),
+                "Ratio": round(ratio, 2),
+                "sub_crop": sub_crop,
+                "mus_crop": mus_crop
+            }
+            st.success(f"✅ Medición de **{region}** guardada en el informe.")
+
+        st.markdown("---")
+
+        # HISTOGRAMA INDEPENDIENTE
+        st.subheader("📈 Histograma de esta Toma")
+        fig_hist, ax_hist = plt.subplots(figsize=(7, 3))
+        if sub_crop.size > 0:
+            ax_hist.hist(sub_crop.ravel(), bins=256, range=[0, 256], color='red', alpha=0.5, label=f'Grasa ({mean_sub:.1f})')
+        if mus_crop.size > 0:
+            ax_hist.hist(mus_crop.ravel(), bins=256, range=[0, 256], color='blue', alpha=0.5, label=f'Músculo ({mean_mus:.1f})')
+        ax_hist.set_xlim([0, 255])
+        ax_hist.set_xlabel("Escala de Grises (0 = Negro, 255 = Blanco)")
+        ax_hist.set_ylabel("Frecuencia")
+        ax_hist.legend(loc='upper right')
+        st.pyplot(fig_hist)
 
 st.markdown("---")
 
@@ -128,14 +137,12 @@ def generar_pdf(informe_dict, avg_sub, avg_mus, avg_ratio, conclusion):
     subtitle_style = ParagraphStyle('SubTitleStyle', parent=styles['Heading2'], fontSize=12, textColor=colors.HexColor('#2B6CB0'), spaceAfter=8)
     body_style = ParagraphStyle('BodyStyle', parent=styles['Normal'], fontSize=10, leading=14, textColor=colors.HexColor('#2D3748'))
     
-    # Encabezado
     story.append(Paragraph("INFORME DE VALORACIÓN ECOGRÁFICA NUTRICIONAL", title_style))
     fecha_str = datetime.now().strftime("%d/%m/%Y %H:%M")
     story.append(Paragraph(f"<b>Fecha de evaluación:</b> {fecha_str}", body_style))
     story.append(Spacer(1, 15))
     story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#CBD5E0'), spaceAfter=15))
     
-    # Tabla de Resultados por Región
     story.append(Paragraph("1. Desglose por Región Anatómica", subtitle_style))
     data = [["Región / Músculo", "Grasa (EI)", "Músculo (EI)", "Ratio M/S", "Diagnóstico"]]
     
@@ -157,7 +164,6 @@ def generar_pdf(informe_dict, avg_sub, avg_mus, avg_ratio, conclusion):
     story.append(t)
     story.append(Spacer(1, 20))
     
-    # Sumario Global
     story.append(Paragraph("2. Promedios Globales Corporales", subtitle_style))
     data_sumario = [
         ["Media Grasa Subcutánea", "Media Ecogenicidad Muscular", "Ratio M/S Global Promedio"],
@@ -174,7 +180,6 @@ def generar_pdf(informe_dict, avg_sub, avg_mus, avg_ratio, conclusion):
     story.append(t_sumario)
     story.append(Spacer(1, 15))
     
-    # Conclusión Clínica
     story.append(Paragraph("<b>Conclusión Diagnóstica:</b>", body_style))
     story.append(Paragraph(f"{conclusion}", body_style))
     
@@ -188,7 +193,6 @@ def generar_pdf(informe_dict, avg_sub, avg_mus, avg_ratio, conclusion):
 st.header("📋 INFORME CLÍNICO CONSOLIDADO")
 
 if st.session_state.informe:
-    # 1. TABLA RESUMEN POR ZONAS
     st.subheader("📌 Desglose por Región Anatómica")
     tabla_datos = []
     
@@ -205,7 +209,6 @@ if st.session_state.informe:
         })
     st.table(tabla_datos)
 
-    # 2. SUMARIO EJECUTIVO CON MEDIAS GLOBALES
     st.subheader("📊 SUMARIO GLOBAL CORPORAL")
     if musculares:
         avg_sub = np.mean([d["Grasa"] for d in musculares])
@@ -219,7 +222,6 @@ if st.session_state.informe:
         diag_global_text = "Conservado" if avg_ratio < 0.7 else ("Infiltración Leve" if avg_ratio < 1.0 else "Severo")
         col_g3.metric("Ratio M/S Global Promedio", f"{avg_ratio:.2f}", diag_global_text)
 
-        # Conclusión Diagnóstica Texto
         if avg_ratio < 0.7:
             conclusion_text = f"Ecosarcopenia Negativa (Score Global: {avg_ratio:.2f}): El promedio de los músculos evaluados muestra una masa y calidad muscular globalmente bien conservadas."
             st.success(f"✅ **{conclusion_text}**")
@@ -232,7 +234,6 @@ if st.session_state.informe:
 
         st.markdown("---")
         
-        # BOTÓN DE DESCARGA PDF
         pdf_bytes = generar_pdf(st.session_state.informe, avg_sub, avg_mus, avg_ratio, conclusion_text)
         
         st.download_button(
