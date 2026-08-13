@@ -7,7 +7,7 @@ from datetime import datetime
 
 # Importaciones para ReportLab (PDF)
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable, KeepTogether
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 
@@ -15,7 +15,7 @@ from reportlab.lib import colors
 st.set_page_config(page_title="EcoSarcopenia Pro", layout="centered")
 
 st.title("🩺 Valoración Ecográfica Nutricional")
-st.markdown("Herramienta de análisis automatizado con escalas y reporte clínico.")
+st.markdown("Herramienta de análisis automatizado con escalas e informe clínico avanzado.")
 
 st.markdown("---")
 
@@ -68,11 +68,9 @@ if uploaded_file is not None:
 
             img_color = cv2.cvtColor(img_gray, cv2.COLOR_GRAY2BGR)
 
-            # Dibujar rectángulos de capas
             cv2.rectangle(img_color, (int(w*0.25), gsa_y[0]), (int(w*0.75), gsa_y[1]), (0, 255, 0), 3)
             cv2.rectangle(img_color, (int(w*0.25), gva_y[0]), (int(w*0.75), gva_y[1]), (0, 0, 255), 3)
 
-            # Renderizado Matplotlib (Escalas externas legibles)
             fig, ax = plt.subplots(figsize=(8, 6))
             ax.imshow(cv2.cvtColor(img_color, cv2.COLOR_BGR2RGB))
             ax.set_xlabel("Ancho Transversal (px)", fontsize=12, fontweight='bold', labelpad=10)
@@ -123,11 +121,9 @@ if uploaded_file is not None:
 
             img_color = cv2.cvtColor(img_gray, cv2.COLOR_GRAY2BGR)
 
-            # Dibujar ROIs
             cv2.rectangle(img_color, (sub_x[0], sub_y[0]), (sub_x[1], sub_y[1]), (255, 0, 0), 3)
             cv2.rectangle(img_color, (mus_x[0], mus_y[0]), (mus_x[1], mus_y[1]), (0, 0, 255), 3)
 
-            # Renderizado Matplotlib
             fig, ax = plt.subplots(figsize=(8, 6))
             ax.imshow(cv2.cvtColor(img_color, cv2.COLOR_BGR2RGB))
             ax.set_xlabel("Ancho Transversal (px)", fontsize=12, fontweight='bold', labelpad=10)
@@ -176,94 +172,142 @@ if uploaded_file is not None:
 st.markdown("---")
 
 # ==============================================================================
-# FUNCIÓN GENERADORA DE PDF CON REPORTLAB
+# FUNCIÓN GENERADORA DE PDF AVANZADO Y DETALLADO
 # ==============================================================================
-def generar_pdf_clinico(datos_informe):
+def generar_pdf_clinico(datos_informe, nombre_paciente="Paciente de Valoración"):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
         buffer,
         pagesize=letter,
-        rightMargin=40,
-        leftMargin=40,
-        topMargin=40,
-        bottomMargin=40
+        rightMargin=36,
+        leftMargin=36,
+        topMargin=36,
+        bottomMargin=36
     )
     story = []
     styles = getSampleStyleSheet()
 
-    # Estilos personalizados
+    # Estilos tipográficos
     titulo_style = ParagraphStyle(
-        'TituloPDF',
-        parent=styles['Heading1'],
-        fontSize=20,
-        leading=24,
-        textColor=colors.HexColor('#003366'),
-        alignment=1,
-        spaceAfter=12
+        'TituloPDF', parent=styles['Heading1'],
+        fontSize=18, leading=22, textColor=colors.HexColor('#003366'),
+        alignment=0, spaceAfter=4
     )
     
     subtitulo_style = ParagraphStyle(
-        'SubtituloPDF',
-        parent=styles['Normal'],
-        fontSize=10,
-        leading=14,
-        textColor=colors.HexColor('#555555'),
-        alignment=1,
-        spaceAfter=20
+        'SubtituloPDF', parent=styles['Normal'],
+        fontSize=9, leading=12, textColor=colors.HexColor('#666666'),
+        spaceAfter=15
+    )
+
+    seccion_style = ParagraphStyle(
+        'SeccionPDF', parent=styles['Heading2'],
+        fontSize=12, leading=16, textColor=colors.HexColor('#003366'),
+        spaceBefore=12, spaceAfter=6, fontName='Helvetica-Bold'
+    )
+
+    body_style = ParagraphStyle(
+        'BodyPDF', parent=styles['Normal'],
+        fontSize=9, leading=13, textColor=colors.HexColor('#333333')
     )
 
     header_tabla = ParagraphStyle(
-        'HeaderTabla',
-        parent=styles['Normal'],
-        fontSize=10,
-        leading=12,
-        textColor=colors.white,
-        fontName='Helvetica-Bold'
+        'HeaderTabla', parent=styles['Normal'],
+        fontSize=9, leading=11, textColor=colors.white, fontName='Helvetica-Bold'
     )
 
     cell_style = ParagraphStyle(
-        'CellTabla',
-        parent=styles['Normal'],
-        fontSize=9,
-        leading=12,
-        textColor=colors.HexColor('#222222')
+        'CellTabla', parent=styles['Normal'],
+        fontSize=8.5, leading=11, textColor=colors.HexColor('#222222')
     )
 
-    # Encabezado del documento
-    story.append(Paragraph("INFORME DE VALORACIÓN ECOGRÁFICA NUTRICIONAL", titulo_style))
-    story.append(Paragraph(f"Fecha de emisión: {datetime.now().strftime('%d/%m/%Y %H:%M')} | Sistema: EcoSarcopenia Pro", subtitulo_style))
-    story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#003366'), spaceAfter=20))
+    # 1. Cabecera Institucional / Clínica
+    story.append(Paragraph("INFORME ECOGRÁFICO DE VALORACIÓN NUTRICIONAL Y SARCOPENIA", titulo_style))
+    story.append(Paragraph(f"Fecha de emisión: {datetime.now().strftime('%d/%m/%Y %H:%M')} | EcoSarcopenia Pro v2.0", subtitulo_style))
+    story.append(HRFlowable(width="100%", thickness=2, color=colors.HexColor('#003366'), spaceAfter=15))
 
-    # Tabla de Resultados
+    # 2. Datos del Paciente
+    datos_paciente = [
+        [Paragraph("<b>Nombre del Paciente:</b>", body_style), Paragraph(nombre_paciente, body_style),
+         Paragraph("<b>Fecha de Evaluación:</b>", body_style), Paragraph(datetime.now().strftime('%d/%m/%Y'), body_style)],
+        [Paragraph("<b>Evaluación:</b>", body_style), Paragraph("Ecointensidad Muscular & Adiposidad", body_style),
+         Paragraph("<b>Estado del Registro:</b>", body_style), Paragraph("Consolidado", body_style)]
+    ]
+    t_paciente = Table(datos_paciente, colWidths=[120, 160, 120, 140])
+    t_paciente.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#F0F4F8')),
+        ('PADDING', (0,0), (-1,-1), 6),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CCCCCC'))
+    ]))
+    story.append(t_paciente)
+    story.append(Spacer(1, 10))
+
+    # 3. Tabla de Resultados Analizados
+    story.append(Paragraph("1. RESUMEN DE MEDICIONES ECOGRÁFICAS", seccion_style))
+    
     tabla_datos = [[
-        Paragraph("<b>Región / Parámetro</b>", header_tabla),
-        Paragraph("<b>Ref. Subcutáneo (px/EI)</b>", header_tabla),
-        Paragraph("<b>Tejido Muscular / Visceral</b>", header_tabla),
-        Paragraph("<b>Ratio / Índice</b>", header_tabla)
+        Paragraph("<b>Región Anatómica Analizada</b>", header_tabla),
+        Paragraph("<b>Ref. Subcutáneo (EI / px)</b>", header_tabla),
+        Paragraph("<b>Tejido Objetivo (EI / px)</b>", header_tabla),
+        Paragraph("<b>Ratio M/S / Índice GVA/GSA</b>", header_tabla),
+        Paragraph("<b>Evaluación Presuntiva</b>", header_tabla)
     ]]
 
     for reg, vals in datos_informe.items():
+        ratio = vals["Ratio"]
+        tipo = vals["Tipo"]
+        
+        if tipo == "Correlación Abdominal":
+            eval_text = "<font color='red'><b>Predominio Visceral</b></font>" if ratio > 1.0 else "<font color='green'><b>Predominio Subcutáneo</b></font>"
+        else:
+            if ratio < 0.8:
+                eval_text = "<font color='green'><b>Buena Calidad Muscular</b></font>"
+            elif ratio <= 1.2:
+                eval_text = "<font color='orange'><b>Infiltración Adiposa Moderada</b></font>"
+            else:
+                eval_text = "<font color='red'><b>Miopatía / Infiltración Severa</b></font>"
+
         tabla_datos.append([
             Paragraph(reg, cell_style),
             Paragraph(str(vals["Grasa"]), cell_style),
             Paragraph(str(vals["Músculo"]), cell_style),
-            Paragraph(str(vals["Ratio"]), cell_style)
+            Paragraph(f"<b>{ratio}</b>", cell_style),
+            Paragraph(eval_text, cell_style)
         ])
 
-    t = Table(tabla_datos, colWidths=[200, 110, 120, 90])
+    t = Table(tabla_datos, colWidths=[160, 95, 95, 90, 100])
     t.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003366')),
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-        ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ('PADDING', (0, 0), (-1, -1), 6),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#DDDDDD')),
-        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F8F9FA')])
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F9FAFB')])
     ]))
-
     story.append(t)
-    story.append(Spacer(1, 25))
-    story.append(Paragraph("<b>Nota clínica:</b> Las mediciones reflejan ecointensidad en escala de grises (0-255) y espesores relativos para evaluación muscular y de adiposidad.", subtitulo_style))
+    story.append(Spacer(1, 12))
+
+    # 4. Explicación de Criterios Clínicos e Interpretación
+    story.append(Paragraph("2. INTERPRETACIÓN Y CRITERIOS ECOGRÁFICOS", seccion_style))
+    texto_criterios = """
+    <b>• Ecointensidad Muscular y Ratio Músculo/Subcutáneo (M/S):</b> La escala de grises de la ecografía (0 a 255) mide la reflectividad de los tejidos. Un tejido muscular sano presenta valores bajos de ecointensidad (aspecto más oscuro/hipoecoico). Un aumento del Ratio M/S o de la ecointensidad muscular sugiere una sustitución del tejido muscular por grasa o tejido fibroso (infiltración grasa o miosteatosis), correlacionada con pérdida de fuerza y riesgo de sarcopenia.<br/><br/>
+    <b>• Correlación de Adiposidad Abdominal (GVA/GSA):</b> Mide la proporción entre la Capa de Grasa Visceral Abdominal (GVA) y la Capa de Grasa Subcutánea Abdominal (GSA). Un índice superior a 1.00 indica un predominio de grasa visceral, asociado a mayor riesgo cardiometabólico.
+    """
+    story.append(Paragraph(texto_criterios, body_style))
+    story.append(Spacer(1, 12))
+
+    # 5. Firma y Observaciones
+    story.append(Paragraph("3. OBSERVACIONES CLÍNICAS Y FIRMA", seccion_style))
+    story.append(Paragraph("<b>Observaciones del profesional:</b> __________________________________________________________________________________________________________________________________________________________________________________________________________________", body_style))
+    story.append(Spacer(1, 40))
+
+    # Firma
+    tabla_firma = [
+        [Paragraph("__________________________________________<br/><b>Firma / Sello del Profesional de la Salud</b>", body_style),
+         Paragraph("__________________________________________<br/><b>Firma del Paciente (Opcional)</b>", body_style)]
+    ]
+    t_firma = Table(tabla_firma, colWidths=[270, 270])
+    t_firma.setStyle(TableStyle([('ALIGN', (0,0), (-1,-1), 'CENTER')]))
+    story.append(t_firma)
 
     doc.build(story)
     buffer.seek(0)
@@ -277,7 +321,11 @@ st.header("📋 INFORME CLÍNICO CONSOLIDADO")
 if st.session_state.informe:
     st.markdown("### Resumen de Parámetros Analizados")
     
-    # Formato visual limpio en lugar de mostrar JSON crudo
+    # Campo para nombre del paciente en la UI
+    nombre_pac = st.text_input("👤 Nombre o Identificador del Paciente:", value="Paciente Anónimo")
+    st.markdown("---")
+
+    # Formato visual limpio
     for item_region, valores in st.session_state.informe.items():
         with st.container():
             st.subheader(f"📌 {item_region}")
@@ -293,13 +341,13 @@ if st.session_state.informe:
                 col3.metric("Ratio M/S", f"{valores['Ratio']}")
             st.markdown("---")
 
-    # Botón de generación y descarga directa de PDF
-    pdf_bytes = generar_pdf_clinico(st.session_state.informe)
+    # Generación del PDF enriquecido
+    pdf_bytes = generar_pdf_clinico(st.session_state.informe, nombre_paciente=nombre_pac)
     
     st.download_button(
-        label="📄 DESCARGAR INFORME EN PDF",
+        label="📄 DESCARGAR INFORME CLÍNICO DETALLADO (PDF)",
         data=pdf_bytes,
-        file_name=f"Informe_Ecografico_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
+        file_name=f"Informe_Ecografico_{nombre_pac.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.pdf",
         mime="application/pdf",
         type="primary",
         use_container_width=True
