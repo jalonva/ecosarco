@@ -5,11 +5,17 @@ import matplotlib.pyplot as plt
 import io
 from datetime import datetime
 
+# Importaciones para ReportLab (PDF)
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib import colors
+
 # Configuración de página
 st.set_page_config(page_title="EcoSarcopenia Pro", layout="centered")
 
 st.title("🩺 Valoración Ecográfica Nutricional")
-st.markdown("Herramienta de análisis automatizado con ejes y escalas de alta visibilidad.")
+st.markdown("Herramienta de análisis automatizado con escalas y reporte clínico.")
 
 st.markdown("---")
 
@@ -66,13 +72,9 @@ if uploaded_file is not None:
             cv2.rectangle(img_color, (int(w*0.25), gsa_y[0]), (int(w*0.75), gsa_y[1]), (0, 255, 0), 3)
             cv2.rectangle(img_color, (int(w*0.25), gva_y[0]), (int(w*0.75), gva_y[1]), (0, 0, 255), 3)
 
-            # ------------------------------------------------------------------
-            # 🖼️ RENDERIZADO HD CON MATPLOTLIB (ESCALAS EXTERNAS LEGBLES)
-            # ------------------------------------------------------------------
+            # Renderizado Matplotlib (Escalas externas legibles)
             fig, ax = plt.subplots(figsize=(8, 6))
             ax.imshow(cv2.cvtColor(img_color, cv2.COLOR_BGR2RGB))
-            
-            # Personalización de escalas legibles
             ax.set_xlabel("Ancho Transversal (px)", fontsize=12, fontweight='bold', labelpad=10)
             ax.set_ylabel("Profundidad (px)", fontsize=12, fontweight='bold', labelpad=10)
             ax.tick_params(axis='both', which='major', labelsize=11)
@@ -95,15 +97,15 @@ if uploaded_file is not None:
             st.write("")
             if st.button("💾 GUARDAR ÍNDICE ABDOMINAL EN INFORME", type="primary", use_container_width=True):
                 st.session_state.informe["Grasa Abdominal"] = {
-                    "GSA_px": espesor_gsa,
-                    "GVA_px": espesor_gva,
+                    "Grasa": espesor_gsa,
+                    "Músculo": espesor_gva,
                     "Ratio": round(indice_correlacion, 2),
                     "Tipo": "Correlación Abdominal"
                 }
                 st.success("✅ Índice de correlación abdominal guardado en el informe.")
 
         # ==============================================================================
-        # OPCIÓN B: ECOINTENSIDAD MUSCULAR (ROIs + ESCALAS HD)
+        # OPCIÓN B: ECOINTENSIDAD MUSCULAR (ROIs)
         # ==============================================================================
         else:
             st.subheader("🖼️ Delimitación de ROIs sobre Ecografía Muscular")
@@ -125,12 +127,9 @@ if uploaded_file is not None:
             cv2.rectangle(img_color, (sub_x[0], sub_y[0]), (sub_x[1], sub_y[1]), (255, 0, 0), 3)
             cv2.rectangle(img_color, (mus_x[0], mus_y[0]), (mus_x[1], mus_y[1]), (0, 0, 255), 3)
 
-            # ------------------------------------------------------------------
-            # 🖼️ RENDERIZADO HD CON MATPLOTLIB (ESCALAS EXTERNAS LEGIBLES)
-            # ------------------------------------------------------------------
+            # Renderizado Matplotlib
             fig, ax = plt.subplots(figsize=(8, 6))
             ax.imshow(cv2.cvtColor(img_color, cv2.COLOR_BGR2RGB))
-            
             ax.set_xlabel("Ancho Transversal (px)", fontsize=12, fontweight='bold', labelpad=10)
             ax.set_ylabel("Profundidad (px)", fontsize=12, fontweight='bold', labelpad=10)
             ax.tick_params(axis='both', which='major', labelsize=11)
@@ -177,11 +176,134 @@ if uploaded_file is not None:
 st.markdown("---")
 
 # ==============================================================================
-# INFORME Y GENERADOR PDF
+# FUNCIÓN GENERADORA DE PDF CON REPORTLAB
+# ==============================================================================
+def generar_pdf_clinico(datos_informe):
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=letter,
+        rightMargin=40,
+        leftMargin=40,
+        topMargin=40,
+        bottomMargin=40
+    )
+    story = []
+    styles = getSampleStyleSheet()
+
+    # Estilos personalizados
+    titulo_style = ParagraphStyle(
+        'TituloPDF',
+        parent=styles['Heading1'],
+        fontSize=20,
+        leading=24,
+        textColor=colors.HexColor('#003366'),
+        alignment=1,
+        spaceAfter=12
+    )
+    
+    subtitulo_style = ParagraphStyle(
+        'SubtituloPDF',
+        parent=styles['Normal'],
+        fontSize=10,
+        leading=14,
+        textColor=colors.HexColor('#555555'),
+        alignment=1,
+        spaceAfter=20
+    )
+
+    header_tabla = ParagraphStyle(
+        'HeaderTabla',
+        parent=styles['Normal'],
+        fontSize=10,
+        leading=12,
+        textColor=colors.white,
+        fontName='Helvetica-Bold'
+    )
+
+    cell_style = ParagraphStyle(
+        'CellTabla',
+        parent=styles['Normal'],
+        fontSize=9,
+        leading=12,
+        textColor=colors.HexColor('#222222')
+    )
+
+    # Encabezado del documento
+    story.append(Paragraph("INFORME DE VALORACIÓN ECOGRÁFICA NUTRICIONAL", titulo_style))
+    story.append(Paragraph(f"Fecha de emisión: {datetime.now().strftime('%d/%m/%Y %H:%M')} | Sistema: EcoSarcopenia Pro", subtitulo_style))
+    story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#003366'), spaceAfter=20))
+
+    # Tabla de Resultados
+    tabla_datos = [[
+        Paragraph("<b>Región / Parámetro</b>", header_tabla),
+        Paragraph("<b>Ref. Subcutáneo (px/EI)</b>", header_tabla),
+        Paragraph("<b>Tejido Muscular / Visceral</b>", header_tabla),
+        Paragraph("<b>Ratio / Índice</b>", header_tabla)
+    ]]
+
+    for reg, vals in datos_informe.items():
+        tabla_datos.append([
+            Paragraph(reg, cell_style),
+            Paragraph(str(vals["Grasa"]), cell_style),
+            Paragraph(str(vals["Músculo"]), cell_style),
+            Paragraph(str(vals["Ratio"]), cell_style)
+        ])
+
+    t = Table(tabla_datos, colWidths=[200, 110, 120, 90])
+    t.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003366')),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#DDDDDD')),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F8F9FA')])
+    ]))
+
+    story.append(t)
+    story.append(Spacer(1, 25))
+    story.append(Paragraph("<b>Nota clínica:</b> Las mediciones reflejan ecointensidad en escala de grises (0-255) y espesores relativos para evaluación muscular y de adiposidad.", subtitulo_style))
+
+    doc.build(story)
+    buffer.seek(0)
+    return buffer
+
+# ==============================================================================
+# SECCIÓN FINAL: INFORME CLÍNICO CONSOLIDADO Y DESCARGA PDF
 # ==============================================================================
 st.header("📋 INFORME CLÍNICO CONSOLIDADO")
 
 if st.session_state.informe:
-    st.write("Resumen de parámetros analizados:", st.session_state.informe)
+    st.markdown("### Resumen de Parámetros Analizados")
+    
+    # Formato visual limpio en lugar de mostrar JSON crudo
+    for item_region, valores in st.session_state.informe.items():
+        with st.container():
+            st.subheader(f"📌 {item_region}")
+            col1, col2, col3 = st.columns(3)
+            
+            if valores["Tipo"] == "Correlación Abdominal":
+                col1.metric("Espesor Subcutáneo (GSA)", f"{valores['Grasa']} px")
+                col2.metric("Espesor Visceral (GVA)", f"{valores['Músculo']} px")
+                col3.metric("Índice GVA / GSA", f"{valores['Ratio']}")
+            else:
+                col1.metric("Grasa Subcutánea (EI)", f"{valores['Grasa']}")
+                col2.metric("Músculo (EI)", f"{valores['Músculo']}")
+                col3.metric("Ratio M/S", f"{valores['Ratio']}")
+            st.markdown("---")
+
+    # Botón de generación y descarga directa de PDF
+    pdf_bytes = generar_pdf_clinico(st.session_state.informe)
+    
+    st.download_button(
+        label="📄 DESCARGAR INFORME EN PDF",
+        data=pdf_bytes,
+        file_name=f"Informe_Ecografico_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
+        mime="application/pdf",
+        type="primary",
+        use_container_width=True
+    )
+
 else:
-    st.info("Sube una imagen para comenzar la evaluación.")
+    st.info("💡 Realiza y guarda al menos una medición para habilitar el informe y la descarga en PDF.")
