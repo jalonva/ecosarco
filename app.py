@@ -12,7 +12,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 
 # ==============================================================================
-# CONFIGURACIÓN DE PÁGINA E INICIALIZACIÓN
+# CONFIGURACIÓN DE PÁGINA E INICIALIZACIÓN DE ESTADO
 # ==============================================================================
 st.set_page_config(page_title="EcoSarcopenia Pro", layout="centered")
 
@@ -25,6 +25,10 @@ if "informe" not in st.session_state:
     st.session_state.informe = {}
 if "hist_data" not in st.session_state:
     st.session_state.hist_data = {}
+if "imagenes_roi" not in st.session_state:
+    st.session_state.imagenes_roi = {}
+if "imagenes_hist_indiv" not in st.session_state:
+    st.session_state.imagenes_hist_indiv = {}
 
 # ==============================================================================
 # 1. SELECTOR DE REGIÓN ANATÓMICA
@@ -72,18 +76,23 @@ if uploaded_file is not None:
             indice_correlacion = (espesor_gva / espesor_gsa) if espesor_gsa > 0 else 0.0
 
             img_color = cv2.cvtColor(img_gray, cv2.COLOR_GRAY2BGR)
-
             cv2.rectangle(img_color, (int(w*0.25), gsa_y[0]), (int(w*0.75), gsa_y[1]), (0, 255, 0), 3)
             cv2.rectangle(img_color, (int(w*0.25), gva_y[0]), (int(w*0.75), gva_y[1]), (0, 0, 255), 3)
 
-            fig, ax = plt.subplots(figsize=(8, 6))
+            fig, ax = plt.subplots(figsize=(8, 5))
             ax.imshow(cv2.cvtColor(img_color, cv2.COLOR_BGR2RGB))
-            ax.set_xlabel("Ancho Transversal (px)", fontsize=12, fontweight='bold', labelpad=10)
-            ax.set_ylabel("Profundidad (px)", fontsize=12, fontweight='bold', labelpad=10)
-            ax.tick_params(axis='both', which='major', labelsize=11)
-            ax.grid(True, color='cyan', alpha=0.3, linestyle='--', linewidth=0.7)
+            ax.set_xlabel("Ancho Transversal (px)", fontsize=10)
+            ax.set_ylabel("Profundidad (px)", fontsize=10)
+            ax.grid(True, color='cyan', alpha=0.3, linestyle='--')
+            plt.tight_layout()
 
             st.pyplot(fig)
+
+            # Buffer de la imagen delimitada para guardarla
+            img_buf_roi = io.BytesIO()
+            fig.savefig(img_buf_roi, format='png', dpi=150)
+            img_buf_roi.seek(0)
+            plt.close(fig)
 
             st.markdown("---")
             st.subheader("📊 Índice de Correlación Calculado")
@@ -105,7 +114,8 @@ if uploaded_file is not None:
                     "Ratio": round(indice_correlacion, 2),
                     "Tipo": "Correlación Abdominal"
                 }
-                st.success("✅ Índice de correlación abdominal guardado en el informe.")
+                st.session_state.imagenes_roi["Grasa Abdominal"] = img_buf_roi
+                st.success("✅ Índice de correlación e imagen abdominal guardados en el informe.")
 
         # ----------------------------------------------------------------------
         # OPCIÓN B: ECOINTENSIDAD MUSCULAR (ROIs)
@@ -129,20 +139,26 @@ if uploaded_file is not None:
             cv2.rectangle(img_color, (sub_x[0], sub_y[0]), (sub_x[1], sub_y[1]), (255, 0, 0), 3)
             cv2.rectangle(img_color, (mus_x[0], mus_y[0]), (mus_x[1], mus_y[1]), (0, 0, 255), 3)
 
-            fig, ax = plt.subplots(figsize=(8, 6))
-            ax.imshow(cv2.cvtColor(img_color, cv2.COLOR_BGR2RGB))
-            ax.set_xlabel("Ancho Transversal (px)", fontsize=12, fontweight='bold', labelpad=10)
-            ax.set_ylabel("Profundidad (px)", fontsize=12, fontweight='bold', labelpad=10)
-            ax.tick_params(axis='both', which='major', labelsize=11)
-            ax.grid(True, color='cyan', alpha=0.3, linestyle='--', linewidth=0.7)
+            fig_roi, ax_roi = plt.subplots(figsize=(8, 5))
+            ax_roi.imshow(cv2.cvtColor(img_color, cv2.COLOR_BGR2RGB))
+            ax_roi.set_xlabel("Ancho Transversal (px)", fontsize=10)
+            ax_roi.set_ylabel("Profundidad (px)", fontsize=10)
+            ax_roi.grid(True, color='cyan', alpha=0.3, linestyle='--')
+            plt.tight_layout()
 
-            st.pyplot(fig)
+            st.pyplot(fig_roi)
+
+            # Guardar buffer de ecografía con ROI
+            img_buf_roi = io.BytesIO()
+            fig_roi.savefig(img_buf_roi, format='png', dpi=150)
+            img_buf_roi.seek(0)
+            plt.close(fig_roi)
 
             sub_crop = img_gray[sub_y[0]:sub_y[1], sub_x[0]:sub_x[1]]
             mus_crop = img_gray[mus_y[0]:mus_y[1], mus_x[0]:mus_x[1]]
 
-            mean_sub = np.mean(sub_crop) if sub_crop.size > 0 else 0.0
-            mean_mus = np.mean(mus_crop) if mus_crop.size > 0 else 0.0
+            mean_sub = float(np.mean(sub_crop)) if sub_crop.size > 0 else 0.0
+            mean_mus = float(np.mean(mus_crop)) if mus_crop.size > 0 else 0.0
             ratio_ms = (mean_mus / mean_sub) if mean_sub > 0 else 0.0
 
             st.markdown("---")
@@ -152,6 +168,29 @@ if uploaded_file is not None:
             c2.metric("Músculo (EI)", f"{mean_mus:.1f}")
             c3.metric("Ratio M/S", f"{ratio_ms:.2f}")
 
+            # Generar Histograma Individual
+            fig_hist, ax_hist = plt.subplots(figsize=(7, 3))
+            if sub_crop.size > 0:
+                ax_hist.hist(sub_crop.ravel(), bins=256, range=[0, 256], color='blue', alpha=0.5, label=f'Subcutáneo ({mean_sub:.1f})')
+            if mus_crop.size > 0:
+                ax_hist.hist(mus_crop.ravel(), bins=256, range=[0, 256], color='red', alpha=0.5, label=f'Músculo ({mean_mus:.1f})')
+            ax_hist.set_xlim([0, 255])
+            ax_hist.set_title(f"Histograma Individual - {region.split('(')[0]}", fontsize=9, fontweight='bold')
+            ax_hist.set_xlabel("Escala de Grises (0 = Negro, 255 = Blanco)", fontsize=8)
+            ax_hist.set_ylabel("Frecuencia", fontsize=8)
+            ax_hist.legend(loc='upper right', fontsize=8)
+            plt.tight_layout()
+
+            st.markdown("---")
+            st.subheader("📈 Histograma Individual de Escala de Grises")
+            st.pyplot(fig_hist)
+
+            # Guardar buffer del histograma individual
+            img_buf_hist = io.BytesIO()
+            fig_hist.savefig(img_buf_hist, format='png', dpi=150)
+            img_buf_hist.seek(0)
+            plt.close(fig_hist)
+
             if st.button("💾 GUARDAR MEDICIÓN MUSCULAR EN INFORME", type="primary", use_container_width=True):
                 st.session_state.informe[region] = {
                     "Grasa": round(mean_sub, 1),
@@ -160,42 +199,42 @@ if uploaded_file is not None:
                     "Tipo": "Ecointensidad"
                 }
                 st.session_state.hist_data[region] = mus_crop.ravel()
-                st.success(f"✅ Medición de **{region}** guardada correctamente.")
-
-            st.markdown("---")
-            st.subheader("📈 Histograma de Escala de Grises")
-            fig_hist, ax_hist = plt.subplots(figsize=(7, 3))
-            if sub_crop.size > 0:
-                ax_hist.hist(sub_crop.ravel(), bins=256, range=[0, 256], color='blue', alpha=0.5, label=f'Subcutáneo ({mean_sub:.1f})')
-            if mus_crop.size > 0:
-                ax_hist.hist(mus_crop.ravel(), bins=256, range=[0, 256], color='red', alpha=0.5, label=f'Músculo ({mean_mus:.1f})')
-            ax_hist.set_xlim([0, 255])
-            ax_hist.set_xlabel("Escala de Grises (0 = Negro, 255 = Blanco)")
-            ax_hist.set_ylabel("Frecuencia")
-            ax_hist.legend(loc='upper right')
-            st.pyplot(fig_hist)
+                st.session_state.imagenes_roi[region] = img_buf_roi
+                st.session_state.imagenes_hist_indiv[region] = img_buf_hist
+                st.success(f"✅ Medición, imagen e histograma de **{region}** guardados correctamente.")
 
 st.markdown("---")
 
 # ==============================================================================
 # FUNCIONES AUXILIARES PARA EL PDF
 # ==============================================================================
-def generar_imagen_histograma_general(hist_dict):
-    """Genera la figura con todos los datos de ecointensidad muscular para el PDF."""
+def generar_imagen_histograma_lineas(hist_dict):
+    """Genera líneas de frecuencia nítidas sin áreas de mezcla ni colores inventados."""
     fig, ax = plt.subplots(figsize=(7, 2.5))
-    colores = ['red', 'green', 'purple', 'orange']
+    colores = ['#D32F2F', '#2E7D32', '#6A1B9A', '#E65100']
+    estilos = ['-', '--', '-.', ':']
     
     for idx, (reg, pixeles) in enumerate(hist_dict.items()):
         if pixeles.size > 0:
             nombre_corto = reg.split('(')[0].strip()
-            ax.hist(pixeles, bins=256, range=[0, 256], color=colores[idx % len(colores)], alpha=0.4, label=nombre_corto)
+            ax.hist(
+                pixeles, 
+                bins=256, 
+                range=[0, 256], 
+                histtype='step', 
+                linewidth=1.8, 
+                color=colores[idx % len(colores)], 
+                linestyle=estilos[idx % len(estilos)],
+                label=nombre_corto
+            )
 
     ax.set_xlim([0, 255])
-    ax.set_title("Distribución Comparativa de Ecointensidad Muscular (Escala de Grises)", fontsize=9, fontweight='bold')
-    ax.set_xlabel("Intensidad de Gris (0-255)", fontsize=8)
+    ax.set_title("Distribución Comparativa de Ecointensidad Muscular (Líneas Nítidas)", fontsize=9, fontweight='bold')
+    ax.set_xlabel("Escala de Grises (0 = Negro, 255 = Blanco)", fontsize=8)
     ax.set_ylabel("Frecuencia (px)", fontsize=8)
     ax.tick_params(axis='both', which='major', labelsize=7)
-    ax.legend(loc='upper right', fontsize=7)
+    ax.grid(True, linestyle=':', alpha=0.5)
+    ax.legend(loc='upper right', fontsize=7.5, framealpha=0.9)
     plt.tight_layout()
 
     img_buf = io.BytesIO()
@@ -204,8 +243,8 @@ def generar_imagen_histograma_general(hist_dict):
     plt.close(fig)
     return img_buf
 
-def generar_pdf_clinico(datos_informe, hist_data, nombre_paciente, nombre_medico, n_colegiado, observaciones):
-    """Construcción garantizada y completa del informe en PDF."""
+def generar_pdf_clinico(datos_informe, hist_data, imgs_roi, imgs_hist, nombre_paciente, nombre_medico, n_colegiado, observaciones):
+    """Genera el informe clínico PDF completo con ecografías, e histogramas individuales y comparativos."""
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
         buffer,
@@ -218,20 +257,19 @@ def generar_pdf_clinico(datos_informe, hist_data, nombre_paciente, nombre_medico
     story = []
     styles = getSampleStyleSheet()
 
-    # Estilos tipográficos
-    titulo_style = ParagraphStyle('TituloPDF', parent=styles['Heading1'], fontSize=16, leading=20, textColor=colors.HexColor('#003366'), spaceAfter=4)
-    subtitulo_style = ParagraphStyle('SubtituloPDF', parent=styles['Normal'], fontSize=8.5, leading=11, textColor=colors.HexColor('#666666'), spaceAfter=12)
-    seccion_style = ParagraphStyle('SeccionPDF', parent=styles['Heading2'], fontSize=11, leading=14, textColor=colors.HexColor('#003366'), spaceBefore=10, spaceAfter=6, fontName='Helvetica-Bold')
-    body_style = ParagraphStyle('BodyPDF', parent=styles['Normal'], fontSize=8.5, leading=11.5, textColor=colors.HexColor('#333333'))
+    titulo_style = ParagraphStyle('TituloPDF', parent=styles['Heading1'], fontSize=15, leading=19, textColor=colors.HexColor('#003366'), spaceAfter=3)
+    subtitulo_style = ParagraphStyle('SubtituloPDF', parent=styles['Normal'], fontSize=8.5, leading=11, textColor=colors.HexColor('#666666'), spaceAfter=10)
+    seccion_style = ParagraphStyle('SeccionPDF', parent=styles['Heading2'], fontSize=10.5, leading=13, textColor=colors.HexColor('#003366'), spaceBefore=8, spaceAfter=5, fontName='Helvetica-Bold')
+    body_style = ParagraphStyle('BodyPDF', parent=styles['Normal'], fontSize=8.5, leading=11, textColor=colors.HexColor('#333333'))
     header_tabla = ParagraphStyle('HeaderTabla', parent=styles['Normal'], fontSize=8.5, leading=10, textColor=colors.white, fontName='Helvetica-Bold')
     cell_style = ParagraphStyle('CellTabla', parent=styles['Normal'], fontSize=8, leading=10, textColor=colors.HexColor('#222222'))
 
-    # 1. ENCABEZADO INSTITUCIONAL
+    # ENCABEZADO INSTITUCIONAL
     story.append(Paragraph("INFORME ECOGRÁFICO DE VALORACIÓN NUTRICIONAL Y SARCOPENIA", titulo_style))
     story.append(Paragraph(f"Fecha de emisión: {datetime.now().strftime('%d/%m/%Y %H:%M')} | Sistema: EcoSarcopenia Pro v2.0", subtitulo_style))
-    story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#003366'), spaceAfter=10))
+    story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#003366'), spaceAfter=8))
 
-    # 2. BLOQUE DATOS DE PACIENTE Y PROFESIONAL
+    # BLOQUE DATOS DE PACIENTE Y PROFESIONAL
     datos_paciente = [
         [Paragraph(f"<b>Paciente:</b> {nombre_paciente}", body_style), Paragraph(f"<b>Médico Evaluador:</b> {nombre_medico}", body_style)],
         [Paragraph(f"<b>Fecha Evaluación:</b> {datetime.now().strftime('%d/%m/%Y')}", body_style), Paragraph(f"<b>Nº Colegiado:</b> {n_colegiado}", body_style)]
@@ -239,16 +277,16 @@ def generar_pdf_clinico(datos_informe, hist_data, nombre_paciente, nombre_medico
     t_paciente = Table(datos_paciente, colWidths=[270, 270])
     t_paciente.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#F0F4F8')),
-        ('PADDING', (0,0), (-1,-1), 6),
+        ('PADDING', (0,0), (-1,-1), 5),
         ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CCCCCC'))
     ]))
     story.append(t_paciente)
-    story.append(Spacer(1, 10))
+    story.append(Spacer(1, 8))
 
-    # 3. TABLA DE MEDICIONES CLINICAS
+    # TABLA DE MEDICIONES CLINICAS
     story.append(Paragraph("1. RESUMEN DE MEDICIONES ECOGRÁFICAS", seccion_style))
     tabla_datos = [[
-        Paragraph("<b>Región Anatómica Analizada</b>", header_tabla),
+        Paragraph("<b>Región Anatómica</b>", header_tabla),
         Paragraph("<b>Ref. Subcutáneo</b>", header_tabla),
         Paragraph("<b>Tejido Objetivo</b>", header_tabla),
         Paragraph("<b>Ratio / Índice</b>", header_tabla),
@@ -273,47 +311,61 @@ def generar_pdf_clinico(datos_informe, hist_data, nombre_paciente, nombre_medico
                 eval_text = "<font color='red'><b>Infiltración Severa</b></font>"
 
         tabla_datos.append([
-            Paragraph(reg, cell_style),
+            Paragraph(reg.split('(')[0].strip(), cell_style),
             Paragraph(sub_val, cell_style),
             Paragraph(obj_val, cell_style),
             Paragraph(f"<b>{ratio}</b>", cell_style),
             Paragraph(eval_text, cell_style)
         ])
 
-    t = Table(tabla_datos, colWidths=[160, 95, 95, 90, 100])
+    t = Table(tabla_datos, colWidths=[150, 95, 95, 80, 120])
     t.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003366')),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('PADDING', (0, 0), (-1, -1), 6),
+        ('PADDING', (0, 0), (-1, -1), 5),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#DDDDDD')),
         ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F9FAFB')])
     ]))
     story.append(t)
     story.append(Spacer(1, 10))
 
-    # 4. HISTOGRAMA COMPARATIVO (Si hay ROIs musculares guardadas)
+    # DETALLE INDIVIDUAL DE CADA REGIÓN (IMAGEN DELIMITADA E HISTOGRAMA PROPIO)
+    story.append(Paragraph("2. REGISTRO INDIVIDUAL DE ECOGRAFÍAS E HISTOGRAMAS", seccion_style))
+    for reg_key in datos_informe.keys():
+        reg_nombre = reg_key.split('(')[0].strip()
+        story.append(Paragraph(f"<b>• {reg_nombre}</b>", ParagraphStyle('RegSub', parent=body_style, fontName='Helvetica-Bold', textColor=colors.HexColor('#003366'))))
+        
+        filas_img = []
+        if reg_key in imgs_roi and imgs_roi[reg_key] is not None:
+            filas_img.append(RLImage(imgs_roi[reg_key], width=250, height=150))
+        if reg_key in imgs_hist and imgs_hist[reg_key] is not None:
+            filas_img.append(RLImage(imgs_hist[reg_key], width=250, height=150))
+        
+        if len(filas_img) == 2:
+            t_imgs = Table([[filas_img[0], filas_img[1]]], colWidths=[260, 260])
+            t_imgs.setStyle(TableStyle([('ALIGN', (0,0), (-1,-1), 'CENTER'), ('VALIGN', (0,0), (-1,-1), 'MIDDLE')]))
+            story.append(t_imgs)
+        elif len(filas_img) == 1:
+            story.append(filas_img[0])
+            
+        story.append(Spacer(1, 6))
+
+    story.append(Spacer(1, 6))
+
+    # HISTOGRAMA COMPARATIVO GENERAL (LÍNEAS)
     if hist_data:
-        story.append(Paragraph("2. HISTOGRAMA COMPARATIVO DE ECOINTENSIDAD", seccion_style))
-        img_hist_buf = generar_imagen_histograma_general(hist_data)
+        story.append(Paragraph("3. HISTOGRAMA COMPARATIVO GENERAL (LINEAL)", seccion_style))
+        img_hist_buf = generar_imagen_histograma_lineas(hist_data)
         story.append(RLImage(img_hist_buf, width=520, height=170))
         story.append(Spacer(1, 10))
 
-    # 5. CRITERIOS INTERPRETATIVOS
-    story.append(Paragraph("3. MARCO REFERENCE Y CRITERIOS ECOGRÁFICOS", seccion_style))
-    texto_criterios = """
-    <b>• Ecointensidad Muscular (Ratio M/S):</b> Refleja la miosteatosis o infiltración grasa intramuscular. Un Ratio M/S elevado indica una desviación en la ecoestructura muscular normal asociada a sarcopenia.<br/>
-    <b>• Índice de Correlación Abdominal (GVA/GSA):</b> Valores > 1.00 reflejan acumulación predominante de grasa visceral sobre la subcutánea, vinculada a mayor riesgo cardiometabólico.
-    """
-    story.append(Paragraph(texto_criterios, body_style))
-    story.append(Spacer(1, 10))
-
-    # 6. OBSERVACIONES Y DIAGNÓSTICO
+    # OBSERVACIONES Y DIAGNÓSTICO
     story.append(Paragraph("4. OBSERVACIONES CLÍNICAS Y DIAGNÓSTICO", seccion_style))
     obs_texto = observaciones.strip() if observaciones.strip() else "Sin observaciones clínicas registradas."
     story.append(Paragraph(f"<b>Notas:</b> {obs_texto}", body_style))
-    story.append(Spacer(1, 25))
+    story.append(Spacer(1, 20))
 
-    # 7. SECCIÓN DE FIRMA Y SELLO
+    # SECCIÓN DE FIRMA Y SELLO
     tabla_firma = [
         [Paragraph(f"__________________________________________<br/><b>Dr/a. {nombre_medico}</b><br/>Col. Nº {n_colegiado}", body_style),
          Paragraph("__________________________________________<br/><b>Firma / Conformidad del Paciente</b>", body_style)]
@@ -334,7 +386,6 @@ st.header("📋 INFORME CLÍNICO CONSOLIDADO")
 if st.session_state.informe:
     st.markdown("### Resumen de Parámetros Analizados")
     
-    # Vista previa en la app
     for item_region, valores in st.session_state.informe.items():
         with st.container():
             st.subheader(f"📌 {item_region}")
@@ -350,7 +401,6 @@ if st.session_state.informe:
                 col3.metric("Ratio M/S", f"{valores['Ratio']}")
             st.markdown("---")
 
-    # 📝 FORMULARIO INTERACTIVO (se procesa ANTES del botón de descarga)
     st.subheader("📝 Datos del Informe y Firma Médica")
     col_p, col_m, col_c = st.columns(3)
     with col_p:
@@ -367,10 +417,12 @@ if st.session_state.informe:
 
     st.markdown("---")
 
-    # Generar los bytes del PDF dinámicamente con los campos del formulario
+    # Generar los bytes del PDF dinámicamente con todo guardado
     pdf_bytes = generar_pdf_clinico(
         st.session_state.informe,
         st.session_state.hist_data,
+        st.session_state.imagenes_roi,
+        st.session_state.imagenes_hist_indiv,
         nombre_paciente=nombre_pac,
         nombre_medico=nombre_med,
         n_colegiado=num_col,
