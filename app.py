@@ -5,13 +5,15 @@ import matplotlib.pyplot as plt
 import io
 from datetime import datetime
 
-# Importaciones para ReportLab (PDF)
+# Importaciones para ReportLab (Generación de PDF)
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable, Image as RLImage
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 
-# Configuración de página
+# ==============================================================================
+# CONFIGURACIÓN DE PÁGINA E INICIALIZACIÓN
+# ==============================================================================
 st.set_page_config(page_title="EcoSarcopenia Pro", layout="centered")
 
 st.title("🩺 Valoración Ecográfica Nutricional")
@@ -19,13 +21,14 @@ st.markdown("Herramienta de análisis automatizado con escalas e informe clínic
 
 st.markdown("---")
 
-# Inicializar estado de sesión
 if "informe" not in st.session_state:
     st.session_state.informe = {}
 if "hist_data" not in st.session_state:
     st.session_state.hist_data = {}
 
-# 1. Selector de Región Anatómica
+# ==============================================================================
+# 1. SELECTOR DE REGIÓN ANATÓMICA
+# ==============================================================================
 region = st.selectbox(
     "📌 Selecciona la región a analizar:",
     [
@@ -49,9 +52,9 @@ if uploaded_file is not None:
     if img_gray is not None:
         h, w = img_gray.shape
 
-        # ==============================================================================
+        # ----------------------------------------------------------------------
         # OPCIÓN A: GRASA ABDOMINAL (ESPESORES E ÍNDICE GVA/GSA)
-        # ==============================================================================
+        # ----------------------------------------------------------------------
         if es_evaluacion_grasa:
             st.subheader("📏 Medición Automática de Espesores e Índice de Correlación")
             st.info("💡 Ajusta los límites de profundidad. La app calcula los espesores y el índice GVA/GSA automáticamente.")
@@ -104,20 +107,20 @@ if uploaded_file is not None:
                 }
                 st.success("✅ Índice de correlación abdominal guardado en el informe.")
 
-        # ==============================================================================
+        # ----------------------------------------------------------------------
         # OPCIÓN B: ECOINTENSIDAD MUSCULAR (ROIs)
-        # ==============================================================================
+        # ----------------------------------------------------------------------
         else:
             st.subheader("🖼️ Delimitación de ROIs sobre Ecografía Muscular")
 
             col_sub, col_mus = st.columns(2)
             with col_sub:
-                st.write(f"🔵 **Tejido Adiposo Subcutáneo (Ref.)**")
+                st.write("🔵 **Tejido Adiposo Subcutáneo (Ref.)**")
                 sub_y = st.slider("Eje Y (Profundidad)", 0, h, (int(h*0.15), int(h*0.35)), key=f"sub_y_{region}")
                 sub_x = st.slider("Eje X (Ancho Transversal)", 0, w, (int(w*0.1), int(w*0.9)), key=f"sub_x_{region}")
             
             with col_mus:
-                st.write(f"🔴 **Tejido Muscular (EI)**")
+                st.write("🔴 **Tejido Muscular (EI)**")
                 mus_y = st.slider("Eje Y (Profundidad)", 0, h, (int(h*0.45), int(h*0.75)), key=f"mus_y_{region}")
                 mus_x = st.slider("Eje X (Ancho Transversal)", 0, w, (int(w*0.1), int(w*0.9)), key=f"mus_x_{region}")
 
@@ -156,7 +159,7 @@ if uploaded_file is not None:
                     "Ratio": round(ratio_ms, 2),
                     "Tipo": "Ecointensidad"
                 }
-                # Guardar datos para el histograma general
+                # Guardar datos de píxeles para el histograma general
                 st.session_state.hist_data[region] = mus_crop.ravel()
                 st.success(f"✅ Medición de **{region}** guardada correctamente.")
 
@@ -176,9 +179,10 @@ if uploaded_file is not None:
 st.markdown("---")
 
 # ==============================================================================
-# FUNCIÓN QUE GENERA EL HISTOGRAMA GENERAL PARA EL PDF
+# FUNCIONES AUXILIARES PARA EL PDF
 # ==============================================================================
 def generar_imagen_histograma_general(hist_dict):
+    """Genera la figura con todos los datos de ecointensidad muscular para el PDF."""
     fig, ax = plt.subplots(figsize=(7, 2.5))
     colores = ['red', 'green', 'purple', 'orange']
     
@@ -201,10 +205,8 @@ def generar_imagen_histograma_general(hist_dict):
     plt.close(fig)
     return img_buf
 
-# ==============================================================================
-# FUNCIÓN GENERADORA DE PDF AVANZADO
-# ==============================================================================
 def generar_pdf_clinico(datos_informe, hist_data, nombre_paciente, nombre_medico, n_colegiado, observaciones):
+    """Construye el documento PDF formateado."""
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
         buffer,
@@ -227,10 +229,10 @@ def generar_pdf_clinico(datos_informe, hist_data, nombre_paciente, nombre_medico
 
     # Encabezado
     story.append(Paragraph("INFORME ECOGRÁFICO DE VALORACIÓN NUTRICIONAL Y SARCOPENIA", titulo_style))
-    story.append(Paragraph(f"Fecha: {datetime.now().strftime('%d/%m/%Y %H:%M')} | EcoSarcopenia Pro v2.0", subtitulo_style))
+    story.append(Paragraph(f"Fecha de emisión: {datetime.now().strftime('%d/%m/%Y %H:%M')} | EcoSarcopenia Pro v2.0", subtitulo_style))
     story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#003366'), spaceAfter=10))
 
-    # Datos
+    # Bloque de Paciente y Profesional
     datos_paciente = [
         [Paragraph(f"<b>Paciente:</b> {nombre_paciente}", body_style), Paragraph(f"<b>Médico Eval.:</b> {nombre_medico}", body_style)],
         [Paragraph(f"<b>Fecha Eval.:</b> {datetime.now().strftime('%d/%m/%Y')}", body_style), Paragraph(f"<b>Nº Colegiado:</b> {n_colegiado}", body_style)]
@@ -286,7 +288,7 @@ def generar_pdf_clinico(datos_informe, hist_data, nombre_paciente, nombre_medico
     story.append(t)
     story.append(Spacer(1, 8))
 
-    # Histograma General (si existen regiones musculares)
+    # Histograma General
     if hist_data:
         story.append(Paragraph("2. HISTOGRAMA COMPARATIVO DE ECOINTENSIDAD", seccion_style))
         img_hist_buf = generar_imagen_histograma_general(hist_data)
@@ -299,7 +301,7 @@ def generar_pdf_clinico(datos_informe, hist_data, nombre_paciente, nombre_medico
     story.append(Paragraph(f"<b>Notas:</b> {obs_texto}", body_style))
     story.append(Spacer(1, 25))
 
-    # Firma
+    # Bloque de Firma
     tabla_firma = [
         [Paragraph(f"__________________________________________<br/><b>Dr/a. {nombre_medico}</b><br/>Col. Nº {n_colegiado}", body_style),
          Paragraph("__________________________________________<br/><b>Firma / Conformidad del Paciente</b>", body_style)]
@@ -313,14 +315,14 @@ def generar_pdf_clinico(datos_informe, hist_data, nombre_paciente, nombre_medico
     return buffer
 
 # ==============================================================================
-# SECCIÓN FINAL: INFORME CLÍNICO CONSOLIDADO Y FORMULARIO PREVIO
+# SECCIÓN FINAL: CONSOLIDACIÓN Y FORMULARIO DE EXPORTACIÓN
 # ==============================================================================
 st.header("📋 INFORME CLÍNICO CONSOLIDADO")
 
 if st.session_state.informe:
     st.markdown("### Resumen de Parámetros Analizados")
     
-    # Formato visual de las mediciones
+    # Renderizado en UI de tarjetas de resumen
     for item_region, valores in st.session_state.informe.items():
         with st.container():
             st.subheader(f"📌 {item_region}")
@@ -336,7 +338,7 @@ if st.session_state.informe:
                 col3.metric("Ratio M/S", f"{valores['Ratio']}")
             st.markdown("---")
 
-    # 📝 FORMULARIO INTERACTIVO PARA DATOS DEL MÉDICO Y OBSERVACIONES
+    # Formulario previo al reporte PDF
     st.subheader("📝 Datos del Informe y Firma Médica")
     col_p, col_m, col_c = st.columns(3)
     with col_p:
@@ -348,12 +350,12 @@ if st.session_state.informe:
 
     obs_clinicas = st.text_area(
         "💬 Observaciones Clínicas / Diagnóstico Presuntivo:",
-        placeholder="Escribe aquí el juicio clínico, recomendaciones de nutrición o tratamiento..."
+        placeholder="Escribe aquí el juicio clínico, recomendaciones nutricionales o plan terapéutico..."
     )
 
     st.markdown("---")
 
-    # Generación y descarga del PDF completo
+    # Generación y descarga del PDF
     pdf_bytes = generar_pdf_clinico(
         st.session_state.informe,
         st.session_state.hist_data,
