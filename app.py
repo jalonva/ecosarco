@@ -1,4 +1,4 @@
-import streamlit as st
+ import streamlit as st
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
@@ -9,7 +9,7 @@ from datetime import datetime
 st.set_page_config(page_title="EcoSarcopenia Pro", layout="centered")
 
 st.title("🩺 Valoración Ecográfica Nutricional")
-st.markdown("Herramienta de análisis automatizado con escala bidimensional calibrada.")
+st.markdown("Herramienta de análisis automatizado con ejes y escalas de alta visibilidad.")
 
 st.markdown("---")
 
@@ -62,39 +62,23 @@ if uploaded_file is not None:
 
             img_color = cv2.cvtColor(img_gray, cv2.COLOR_GRAY2BGR)
 
+            # Dibujar rectángulos de capas
+            cv2.rectangle(img_color, (int(w*0.25), gsa_y[0]), (int(w*0.75), gsa_y[1]), (0, 255, 0), 3)
+            cv2.rectangle(img_color, (int(w*0.25), gva_y[0]), (int(w*0.75), gva_y[1]), (0, 0, 255), 3)
+
             # ------------------------------------------------------------------
-            # 📐 ESCALAS BIDIMENSIONALES EQUILIBRADAS (EJE Y Y EJE X)
+            # 🖼️ RENDERIZADO HD CON MATPLOTLIB (ESCALAS EXTERNAS LEGBLES)
             # ------------------------------------------------------------------
-            font_scale = 0.55
-            thickness = 1
-            tick_size = 12
+            fig, ax = plt.subplots(figsize=(8, 6))
+            ax.imshow(cv2.cvtColor(img_color, cv2.COLOR_BGR2RGB))
+            
+            # Personalización de escalas legibles
+            ax.set_xlabel("Ancho Transversal (px)", fontsize=12, fontweight='bold', labelpad=10)
+            ax.set_ylabel("Profundidad (px)", fontsize=12, fontweight='bold', labelpad=10)
+            ax.tick_params(axis='both', which='major', labelsize=11)
+            ax.grid(True, color='cyan', alpha=0.3, linestyle='--', linewidth=0.7)
 
-            # Regla Vertical Y (Profundidad)
-            paso_y = max(40, int(h / 8))
-            for y_mark in range(0, h, paso_y):
-                cv2.line(img_color, (0, y_mark), (tick_size, y_mark), (0, 255, 255), 2)
-                cv2.putText(img_color, f"{y_mark}", (tick_size + 4, y_mark + 5), 
-                            cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 255, 255), thickness, cv2.LINE_AA)
-
-            # Regla Horizontal X (Transversal) - Espaciado adecuado para evitar solapamientos
-            paso_x = max(80, int(w / 6))
-            for x_mark in range(0, w, paso_x):
-                cv2.line(img_color, (x_mark, h - 1), (x_mark, h - tick_size), (0, 255, 255), 2)
-                
-                # Centrar el texto en torno a la marca horizontal
-                texto_x = f"{x_mark}"
-                (w_text, h_text), _ = cv2.getTextSize(texto_x, cv2.FONT_HERSHEY_SIMPLEX, font_scale, thickness)
-                pos_x = max(0, x_mark - (w_text // 2))
-                pos_y = h - tick_size - 4
-                
-                cv2.putText(img_color, texto_x, (pos_x, pos_y), 
-                            cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 255, 255), thickness, cv2.LINE_AA)
-
-            # Delimitación de capas
-            cv2.rectangle(img_color, (int(w*0.25), gsa_y[0]), (int(w*0.75), gsa_y[1]), (0, 255, 0), 2)
-            cv2.rectangle(img_color, (int(w*0.25), gva_y[0]), (int(w*0.75), gva_y[1]), (0, 0, 255), 2)
-
-            st.image(img_color, channels="BGR", use_container_width=True)
+            st.pyplot(fig)
 
             st.markdown("---")
             st.subheader("📊 Índice de Correlación Calculado")
@@ -119,7 +103,7 @@ if uploaded_file is not None:
                 st.success("✅ Índice de correlación abdominal guardado en el informe.")
 
         # ==============================================================================
-        # OPCIÓN B: ECOINTENSIDAD MUSCULAR (ROIs + DOBLE ESCALA EQUILIBRADA)
+        # OPCIÓN B: ECOINTENSIDAD MUSCULAR (ROIs + ESCALAS HD)
         # ==============================================================================
         else:
             st.subheader("🖼️ Delimitación de ROIs sobre Ecografía Muscular")
@@ -137,38 +121,22 @@ if uploaded_file is not None:
 
             img_color = cv2.cvtColor(img_gray, cv2.COLOR_GRAY2BGR)
 
-            # ------------------------------------------------------------------
-            # 📐 ESCALAS BIDIMENSIONALES EQUILIBRADAS (EJE Y Y EJE X)
-            # ------------------------------------------------------------------
-            font_scale = 0.55
-            thickness = 1
-            tick_size = 12
-
-            # Regla Vertical Y (Profundidad)
-            paso_y = max(40, int(h / 8))
-            for y_mark in range(0, h, paso_y):
-                cv2.line(img_color, (0, y_mark), (tick_size, y_mark), (0, 255, 255), 2)
-                cv2.putText(img_color, f"{y_mark}", (tick_size + 4, y_mark + 5), 
-                            cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 255, 255), thickness, cv2.LINE_AA)
-
-            # Regla Horizontal X (Transversal)
-            paso_x = max(80, int(w / 6))
-            for x_mark in range(0, w, paso_x):
-                cv2.line(img_color, (x_mark, h - 1), (x_mark, h - tick_size), (0, 255, 255), 2)
-                
-                texto_x = f"{x_mark}"
-                (w_text, h_text), _ = cv2.getTextSize(texto_x, cv2.FONT_HERSHEY_SIMPLEX, font_scale, thickness)
-                pos_x = max(0, x_mark - (w_text // 2))
-                pos_y = h - tick_size - 4
-                
-                cv2.putText(img_color, texto_x, (pos_x, pos_y), 
-                            cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 255, 255), thickness, cv2.LINE_AA)
-
             # Dibujar ROIs
-            cv2.rectangle(img_color, (sub_x[0], sub_y[0]), (sub_x[1], sub_y[1]), (255, 0, 0), 2)
-            cv2.rectangle(img_color, (mus_x[0], mus_y[0]), (mus_x[1], mus_y[1]), (0, 0, 255), 2)
+            cv2.rectangle(img_color, (sub_x[0], sub_y[0]), (sub_x[1], sub_y[1]), (255, 0, 0), 3)
+            cv2.rectangle(img_color, (mus_x[0], mus_y[0]), (mus_x[1], mus_y[1]), (0, 0, 255), 3)
 
-            st.image(img_color, channels="BGR", use_container_width=True)
+            # ------------------------------------------------------------------
+            # 🖼️ RENDERIZADO HD CON MATPLOTLIB (ESCALAS EXTERNAS LEGIBLES)
+            # ------------------------------------------------------------------
+            fig, ax = plt.subplots(figsize=(8, 6))
+            ax.imshow(cv2.cvtColor(img_color, cv2.COLOR_BGR2RGB))
+            
+            ax.set_xlabel("Ancho Transversal (px)", fontsize=12, fontweight='bold', labelpad=10)
+            ax.set_ylabel("Profundidad (px)", fontsize=12, fontweight='bold', labelpad=10)
+            ax.tick_params(axis='both', which='major', labelsize=11)
+            ax.grid(True, color='cyan', alpha=0.3, linestyle='--', linewidth=0.7)
+
+            st.pyplot(fig)
 
             sub_crop = img_gray[sub_y[0]:sub_y[1], sub_x[0]:sub_x[1]]
             mus_crop = img_gray[mus_y[0]:mus_y[1], mus_x[0]:mus_x[1]]
