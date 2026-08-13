@@ -9,16 +9,19 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 
+# Configuración de página
 st.set_page_config(page_title="EcoSarcopenia Pro", layout="centered")
 
 st.title("🩺 Valoración Ecográfica Nutricional")
-st.markdown("Herramienta de análisis automatizado con escala bidimensional (Profundidad + Transversal).")
+st.markdown("Herramienta de análisis automatizado con escala bidimensional clara (Profundidad + Transversal).")
 
 st.markdown("---")
 
+# Inicializar estado de sesión
 if "informe" not in st.session_state:
     st.session_state.informe = {}
 
+# 1. Selector de Región Anatómica
 region = st.selectbox(
     "📌 Selecciona la región a analizar:",
     [
@@ -64,20 +67,17 @@ if uploaded_file is not None:
             img_color = cv2.cvtColor(img_gray, cv2.COLOR_GRAY2BGR)
 
             # ------------------------------------------------------------------
-            # 📐 REGLA 1: ESCALA VERTICAL DE PROFUNDIDAD (EJE Y - MARGEN IZQUIERDO)
+            # 📐 ESCALAS VISUALES CLARAS (EJE Y Y EJE X)
             # ------------------------------------------------------------------
-            paso_y = max(30, int(h / 10))
+            paso_y = max(40, int(h / 8))
             for y_mark in range(0, h, paso_y):
-                cv2.line(img_color, (0, y_mark), (18, y_mark), (0, 255, 255), 2)
-                cv2.putText(img_color, f"{y_mark}", (22, y_mark + 4), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 255, 255), 1, cv2.LINE_AA)
+                cv2.line(img_color, (0, y_mark), (25, y_mark), (0, 255, 255), 2)
+                cv2.putText(img_color, f"{y_mark}", (28, y_mark + 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1, cv2.LINE_AA)
 
-            # ------------------------------------------------------------------
-            # 📐 REGLA 2: ESCALA HORIZONTAL TRANSVERSAL (EJE X - MARGEN INFERIOR)
-            # ------------------------------------------------------------------
-            paso_x = max(40, int(w / 10))
+            paso_x = max(60, int(w / 8))
             for x_mark in range(0, w, paso_x):
-                cv2.line(img_color, (x_mark, h - 1), (x_mark, h - 18), (0, 255, 255), 2)
-                cv2.putText(img_color, f"{x_mark}", (x_mark - 10, h - 22), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 255, 255), 1, cv2.LINE_AA)
+                cv2.line(img_color, (x_mark, h - 1), (x_mark, h - 25), (0, 255, 255), 2)
+                cv2.putText(img_color, f"{x_mark}", (x_mark - 15, h - 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1, cv2.LINE_AA)
 
             # Capas de grasa delimitadas
             cv2.rectangle(img_color, (int(w*0.2), gsa_y[0]), (int(w*0.8), gsa_y[1]), (0, 255, 0), 2)
@@ -108,7 +108,7 @@ if uploaded_file is not None:
                 st.success("✅ Índice de correlación abdominal guardado en el informe.")
 
         # ==============================================================================
-        # OPCIÓN B: ECOINTENSIDAD MUSCULAR (ROIs + DOBLE ESCALA)
+        # OPCIÓN B: ECOINTENSIDAD MUSCULAR (ROIs + DOBLE ESCALA CLARA)
         # ==============================================================================
         else:
             st.subheader("🖼️ Delimitación de ROIs sobre Ecografía Muscular")
@@ -127,20 +127,17 @@ if uploaded_file is not None:
             img_color = cv2.cvtColor(img_gray, cv2.COLOR_GRAY2BGR)
 
             # ------------------------------------------------------------------
-            # 📐 REGLA 1: ESCALA VERTICAL DE PROFUNDIDAD (EJE Y - MARGEN IZQUIERDO)
+            # 📐 ESCALAS VISUALES CLARAS (EJE Y Y EJE X)
             # ------------------------------------------------------------------
-            paso_y = max(30, int(h / 10))
+            paso_y = max(40, int(h / 8))
             for y_mark in range(0, h, paso_y):
-                cv2.line(img_color, (0, y_mark), (18, y_mark), (0, 255, 255), 2)
-                cv2.putText(img_color, f"{y_mark}", (22, y_mark + 4), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 255, 255), 1, cv2.LINE_AA)
+                cv2.line(img_color, (0, y_mark), (25, y_mark), (0, 255, 255), 2)
+                cv2.putText(img_color, f"{y_mark}", (28, y_mark + 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1, cv2.LINE_AA)
 
-            # ------------------------------------------------------------------
-            # 📐 REGLA 2: ESCALA HORIZONTAL TRANSVERSAL (EJE X - MARGEN INFERIOR)
-            # ------------------------------------------------------------------
-            paso_x = max(40, int(w / 10))
+            paso_x = max(60, int(w / 8))
             for x_mark in range(0, w, paso_x):
-                cv2.line(img_color, (x_mark, h - 1), (x_mark, h - 18), (0, 255, 255), 2)
-                cv2.putText(img_color, f"{x_mark}", (x_mark - 10, h - 22), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 255, 255), 1, cv2.LINE_AA)
+                cv2.line(img_color, (x_mark, h - 1), (x_mark, h - 25), (0, 255, 255), 2)
+                cv2.putText(img_color, f"{x_mark}", (x_mark - 15, h - 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1, cv2.LINE_AA)
 
             # Dibujar ROIs
             cv2.rectangle(img_color, (sub_x[0], sub_y[0]), (sub_x[1], sub_y[1]), (255, 0, 0), 2)
