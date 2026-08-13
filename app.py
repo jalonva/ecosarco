@@ -159,7 +159,6 @@ if uploaded_file is not None:
                     "Ratio": round(ratio_ms, 2),
                     "Tipo": "Ecointensidad"
                 }
-                # Guardar datos de píxeles para el histograma general
                 st.session_state.hist_data[region] = mus_crop.ravel()
                 st.success(f"✅ Medición de **{region}** guardada correctamente.")
 
@@ -206,7 +205,7 @@ def generar_imagen_histograma_general(hist_dict):
     return img_buf
 
 def generar_pdf_clinico(datos_informe, hist_data, nombre_paciente, nombre_medico, n_colegiado, observaciones):
-    """Construye el documento PDF formateado."""
+    """Construcción garantizada y completa del informe en PDF."""
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
         buffer,
@@ -219,7 +218,7 @@ def generar_pdf_clinico(datos_informe, hist_data, nombre_paciente, nombre_medico
     story = []
     styles = getSampleStyleSheet()
 
-    # Estilos
+    # Estilos tipográficos
     titulo_style = ParagraphStyle('TituloPDF', parent=styles['Heading1'], fontSize=16, leading=20, textColor=colors.HexColor('#003366'), spaceAfter=4)
     subtitulo_style = ParagraphStyle('SubtituloPDF', parent=styles['Normal'], fontSize=8.5, leading=11, textColor=colors.HexColor('#666666'), spaceAfter=12)
     seccion_style = ParagraphStyle('SeccionPDF', parent=styles['Heading2'], fontSize=11, leading=14, textColor=colors.HexColor('#003366'), spaceBefore=10, spaceAfter=6, fontName='Helvetica-Bold')
@@ -227,26 +226,26 @@ def generar_pdf_clinico(datos_informe, hist_data, nombre_paciente, nombre_medico
     header_tabla = ParagraphStyle('HeaderTabla', parent=styles['Normal'], fontSize=8.5, leading=10, textColor=colors.white, fontName='Helvetica-Bold')
     cell_style = ParagraphStyle('CellTabla', parent=styles['Normal'], fontSize=8, leading=10, textColor=colors.HexColor('#222222'))
 
-    # Encabezado
+    # 1. ENCABEZADO INSTITUCIONAL
     story.append(Paragraph("INFORME ECOGRÁFICO DE VALORACIÓN NUTRICIONAL Y SARCOPENIA", titulo_style))
-    story.append(Paragraph(f"Fecha de emisión: {datetime.now().strftime('%d/%m/%Y %H:%M')} | EcoSarcopenia Pro v2.0", subtitulo_style))
+    story.append(Paragraph(f"Fecha de emisión: {datetime.now().strftime('%d/%m/%Y %H:%M')} | Sistema: EcoSarcopenia Pro v2.0", subtitulo_style))
     story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#003366'), spaceAfter=10))
 
-    # Bloque de Paciente y Profesional
+    # 2. BLOQUE DATOS DE PACIENTE Y PROFESIONAL
     datos_paciente = [
-        [Paragraph(f"<b>Paciente:</b> {nombre_paciente}", body_style), Paragraph(f"<b>Médico Eval.:</b> {nombre_medico}", body_style)],
-        [Paragraph(f"<b>Fecha Eval.:</b> {datetime.now().strftime('%d/%m/%Y')}", body_style), Paragraph(f"<b>Nº Colegiado:</b> {n_colegiado}", body_style)]
+        [Paragraph(f"<b>Paciente:</b> {nombre_paciente}", body_style), Paragraph(f"<b>Médico Evaluador:</b> {nombre_medico}", body_style)],
+        [Paragraph(f"<b>Fecha Evaluación:</b> {datetime.now().strftime('%d/%m/%Y')}", body_style), Paragraph(f"<b>Nº Colegiado:</b> {n_colegiado}", body_style)]
     ]
     t_paciente = Table(datos_paciente, colWidths=[270, 270])
     t_paciente.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#F0F4F8')),
-        ('PADDING', (0,0), (-1,-1), 5),
+        ('PADDING', (0,0), (-1,-1), 6),
         ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#CCCCCC'))
     ]))
     story.append(t_paciente)
     story.append(Spacer(1, 10))
 
-    # Tabla de Resultados
+    # 3. TABLA DE MEDICIONES CLINICAS
     story.append(Paragraph("1. RESUMEN DE MEDICIONES ECOGRÁFICAS", seccion_style))
     tabla_datos = [[
         Paragraph("<b>Región Anatómica Analizada</b>", header_tabla),
@@ -261,7 +260,11 @@ def generar_pdf_clinico(datos_informe, hist_data, nombre_paciente, nombre_medico
         tipo = vals["Tipo"]
         if tipo == "Correlación Abdominal":
             eval_text = "<font color='red'><b>Predominio Visceral</b></font>" if ratio > 1.0 else "<font color='green'><b>Predominio Subcutáneo</b></font>"
+            sub_val = f"{vals['Grasa']} px"
+            obj_val = f"{vals['Músculo']} px"
         else:
+            sub_val = f"{vals['Grasa']} EI"
+            obj_val = f"{vals['Músculo']} EI"
             if ratio < 0.8:
                 eval_text = "<font color='green'><b>Buena Calidad Muscular</b></font>"
             elif ratio <= 1.2:
@@ -271,8 +274,8 @@ def generar_pdf_clinico(datos_informe, hist_data, nombre_paciente, nombre_medico
 
         tabla_datos.append([
             Paragraph(reg, cell_style),
-            Paragraph(str(vals["Grasa"]), cell_style),
-            Paragraph(str(vals["Músculo"]), cell_style),
+            Paragraph(sub_val, cell_style),
+            Paragraph(obj_val, cell_style),
             Paragraph(f"<b>{ratio}</b>", cell_style),
             Paragraph(eval_text, cell_style)
         ])
@@ -281,27 +284,36 @@ def generar_pdf_clinico(datos_informe, hist_data, nombre_paciente, nombre_medico
     t.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003366')),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('PADDING', (0, 0), (-1, -1), 5),
+        ('PADDING', (0, 0), (-1, -1), 6),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#DDDDDD')),
         ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F9FAFB')])
     ]))
     story.append(t)
-    story.append(Spacer(1, 8))
+    story.append(Spacer(1, 10))
 
-    # Histograma General
+    # 4. HISTOGRAMA COMPARATIVO (Si hay ROIs musculares guardadas)
     if hist_data:
         story.append(Paragraph("2. HISTOGRAMA COMPARATIVO DE ECOINTENSIDAD", seccion_style))
         img_hist_buf = generar_imagen_histograma_general(hist_data)
-        story.append(RLImage(img_hist_buf, width=520, height=180))
-        story.append(Spacer(1, 8))
+        story.append(RLImage(img_hist_buf, width=520, height=170))
+        story.append(Spacer(1, 10))
 
-    # Observaciones Clínicas
-    story.append(Paragraph("3. OBSERVACIONES CLÍNICAS Y DIAGNÓSTICO", seccion_style))
-    obs_texto = observaciones.strip() if observaciones.strip() else "Sin observaciones registradas."
+    # 5. CRITERIOS INTERPRETATIVOS
+    story.append(Paragraph("3. MARCO REFERENCE Y CRITERIOS ECOGRÁFICOS", seccion_style))
+    texto_criterios = """
+    <b>• Ecointensidad Muscular (Ratio M/S):</b> Refleja la miosteatosis o infiltración grasa intramuscular. Un Ratio M/S elevado indica una desviación en la ecoestructura muscular normal asociada a sarcopenia.<br/>
+    <b>• Índice de Correlación Abdominal (GVA/GSA):</b> Valores > 1.00 reflejan acumulación predominante de grasa visceral sobre la subcutánea, vinculada a mayor riesgo cardiometabólico.
+    """
+    story.append(Paragraph(texto_criterios, body_style))
+    story.append(Spacer(1, 10))
+
+    # 6. OBSERVACIONES Y DIAGNÓSTICO
+    story.append(Paragraph("4. OBSERVACIONES CLÍNICAS Y DIAGNÓSTICO", seccion_style))
+    obs_texto = observaciones.strip() if observaciones.strip() else "Sin observaciones clínicas registradas."
     story.append(Paragraph(f"<b>Notas:</b> {obs_texto}", body_style))
     story.append(Spacer(1, 25))
 
-    # Bloque de Firma
+    # 7. SECCIÓN DE FIRMA Y SELLO
     tabla_firma = [
         [Paragraph(f"__________________________________________<br/><b>Dr/a. {nombre_medico}</b><br/>Col. Nº {n_colegiado}", body_style),
          Paragraph("__________________________________________<br/><b>Firma / Conformidad del Paciente</b>", body_style)]
@@ -315,14 +327,14 @@ def generar_pdf_clinico(datos_informe, hist_data, nombre_paciente, nombre_medico
     return buffer
 
 # ==============================================================================
-# SECCIÓN FINAL: CONSOLIDACIÓN Y FORMULARIO DE EXPORTACIÓN
+# SECCIÓN FINAL: INFORME CLÍNICO CONSOLIDADO Y DESCARGA
 # ==============================================================================
 st.header("📋 INFORME CLÍNICO CONSOLIDADO")
 
 if st.session_state.informe:
     st.markdown("### Resumen de Parámetros Analizados")
     
-    # Renderizado en UI de tarjetas de resumen
+    # Vista previa en la app
     for item_region, valores in st.session_state.informe.items():
         with st.container():
             st.subheader(f"📌 {item_region}")
@@ -338,7 +350,7 @@ if st.session_state.informe:
                 col3.metric("Ratio M/S", f"{valores['Ratio']}")
             st.markdown("---")
 
-    # Formulario previo al reporte PDF
+    # 📝 FORMULARIO INTERACTIVO (se procesa ANTES del botón de descarga)
     st.subheader("📝 Datos del Informe y Firma Médica")
     col_p, col_m, col_c = st.columns(3)
     with col_p:
@@ -350,12 +362,12 @@ if st.session_state.informe:
 
     obs_clinicas = st.text_area(
         "💬 Observaciones Clínicas / Diagnóstico Presuntivo:",
-        placeholder="Escribe aquí el juicio clínico, recomendaciones nutricionales o plan terapéutico..."
+        placeholder="Escribe aquí el juicio clínico, recomendaciones de nutrición o tratamiento..."
     )
 
     st.markdown("---")
 
-    # Generación y descarga del PDF
+    # Generar los bytes del PDF dinámicamente con los campos del formulario
     pdf_bytes = generar_pdf_clinico(
         st.session_state.informe,
         st.session_state.hist_data,
