@@ -13,7 +13,7 @@ from reportlab.lib import colors
 st.set_page_config(page_title="EcoSarcopenia Pro", layout="centered")
 
 st.title("🩺 Valoración Ecográfica Nutricional")
-st.markdown("Herramienta de análisis automatizado con escala bidimensional clara (Profundidad + Transversal).")
+st.markdown("Herramienta de análisis automatizado con escala bidimensional HD de alta visibilidad.")
 
 st.markdown("---")
 
@@ -46,6 +46,15 @@ if uploaded_file is not None:
         h, w = img_gray.shape
 
         # ==============================================================================
+        # CÁLCULO DINÁMICO DE TAMAÑO DE TEXTO Y TRAZO SEGÚN RESOLUCIÓN
+        # ==============================================================================
+        # Ajusta el tamaño de la letra y líneas proporcionalmente a la resolución
+        font_scale = max(0.8, h / 400.0)      # Tamaño de fuente grande y legible
+        thickness = max(2, int(h / 300.0))     # Grosor de la línea del texto
+        tick_len_y = int(w * 0.05)             # Longitud de marcas Y (5% del ancho)
+        tick_len_x = int(h * 0.05)             # Longitud de marcas X (5% de la altura)
+
+        # ==============================================================================
         # OPCIÓN A: GRASA ABDOMINAL (ESPESORES E ÍNDICE GVA/GSA)
         # ==============================================================================
         if es_evaluacion_grasa:
@@ -67,21 +76,25 @@ if uploaded_file is not None:
             img_color = cv2.cvtColor(img_gray, cv2.COLOR_GRAY2BGR)
 
             # ------------------------------------------------------------------
-            # 📐 ESCALAS VISUALES CLARAS (EJE Y Y EJE X)
+            # 📐 ESCALAS VISUALES HD (EJE Y Y EJE X)
             # ------------------------------------------------------------------
-            paso_y = max(40, int(h / 8))
+            paso_y = max(50, int(h / 8))
             for y_mark in range(0, h, paso_y):
-                cv2.line(img_color, (0, y_mark), (25, y_mark), (0, 255, 255), 2)
-                cv2.putText(img_color, f"{y_mark}", (28, y_mark + 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1, cv2.LINE_AA)
+                # Regla Vertical Y
+                cv2.line(img_color, (0, y_mark), (tick_len_y, y_mark), (0, 255, 255), thickness)
+                cv2.putText(img_color, f"{y_mark}", (tick_len_y + 8, y_mark + int(10 * font_scale)), 
+                            cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 255, 255), thickness, cv2.LINE_AA)
 
-            paso_x = max(60, int(w / 8))
+            paso_x = max(80, int(w / 8))
             for x_mark in range(0, w, paso_x):
-                cv2.line(img_color, (x_mark, h - 1), (x_mark, h - 25), (0, 255, 255), 2)
-                cv2.putText(img_color, f"{x_mark}", (x_mark - 15, h - 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1, cv2.LINE_AA)
+                # Regla Horizontal X
+                cv2.line(img_color, (x_mark, h - 1), (x_mark, h - tick_len_x), (0, 255, 255), thickness)
+                cv2.putText(img_color, f"{x_mark}", (x_mark - int(20 * font_scale), h - tick_len_x - 10), 
+                            cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 255, 255), thickness, cv2.LINE_AA)
 
             # Capas de grasa delimitadas
-            cv2.rectangle(img_color, (int(w*0.2), gsa_y[0]), (int(w*0.8), gsa_y[1]), (0, 255, 0), 2)
-            cv2.rectangle(img_color, (int(w*0.2), gva_y[0]), (int(w*0.8), gva_y[1]), (0, 0, 255), 2)
+            cv2.rectangle(img_color, (int(w*0.25), gsa_y[0]), (int(w*0.75), gsa_y[1]), (0, 255, 0), thickness)
+            cv2.rectangle(img_color, (int(w*0.25), gva_y[0]), (int(w*0.75), gva_y[1]), (0, 0, 255), thickness)
 
             st.image(img_color, channels="BGR", use_container_width=True)
 
@@ -108,7 +121,7 @@ if uploaded_file is not None:
                 st.success("✅ Índice de correlación abdominal guardado en el informe.")
 
         # ==============================================================================
-        # OPCIÓN B: ECOINTENSIDAD MUSCULAR (ROIs + DOBLE ESCALA CLARA)
+        # OPCIÓN B: ECOINTENSIDAD MUSCULAR (ROIs + DOBLE ESCALA HD)
         # ==============================================================================
         else:
             st.subheader("🖼️ Delimitación de ROIs sobre Ecografía Muscular")
@@ -127,21 +140,25 @@ if uploaded_file is not None:
             img_color = cv2.cvtColor(img_gray, cv2.COLOR_GRAY2BGR)
 
             # ------------------------------------------------------------------
-            # 📐 ESCALAS VISUALES CLARAS (EJE Y Y EJE X)
+            # 📐 ESCALAS VISUALES HD (EJE Y Y EJE X)
             # ------------------------------------------------------------------
-            paso_y = max(40, int(h / 8))
+            paso_y = max(50, int(h / 8))
             for y_mark in range(0, h, paso_y):
-                cv2.line(img_color, (0, y_mark), (25, y_mark), (0, 255, 255), 2)
-                cv2.putText(img_color, f"{y_mark}", (28, y_mark + 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1, cv2.LINE_AA)
+                # Regla Vertical Y
+                cv2.line(img_color, (0, y_mark), (tick_len_y, y_mark), (0, 255, 255), thickness)
+                cv2.putText(img_color, f"{y_mark}", (tick_len_y + 8, y_mark + int(10 * font_scale)), 
+                            cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 255, 255), thickness, cv2.LINE_AA)
 
-            paso_x = max(60, int(w / 8))
+            paso_x = max(80, int(w / 8))
             for x_mark in range(0, w, paso_x):
-                cv2.line(img_color, (x_mark, h - 1), (x_mark, h - 25), (0, 255, 255), 2)
-                cv2.putText(img_color, f"{x_mark}", (x_mark - 15, h - 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1, cv2.LINE_AA)
+                # Regla Horizontal X
+                cv2.line(img_color, (x_mark, h - 1), (x_mark, h - tick_len_x), (0, 255, 255), thickness)
+                cv2.putText(img_color, f"{x_mark}", (x_mark - int(20 * font_scale), h - tick_len_x - 10), 
+                            cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 255, 255), thickness, cv2.LINE_AA)
 
             # Dibujar ROIs
-            cv2.rectangle(img_color, (sub_x[0], sub_y[0]), (sub_x[1], sub_y[1]), (255, 0, 0), 2)
-            cv2.rectangle(img_color, (mus_x[0], mus_y[0]), (mus_x[1], mus_y[1]), (0, 0, 255), 2)
+            cv2.rectangle(img_color, (sub_x[0], sub_y[0]), (sub_x[1], sub_y[1]), (255, 0, 0), thickness)
+            cv2.rectangle(img_color, (mus_x[0], mus_y[0]), (mus_x[1], mus_y[1]), (0, 0, 255), thickness)
 
             st.image(img_color, channels="BGR", use_container_width=True)
 
@@ -192,3 +209,5 @@ if st.session_state.informe:
     st.write("Resumen de parámetros analizados:", st.session_state.informe)
 else:
     st.info("Sube una imagen para comenzar la evaluación.")
+
+            
