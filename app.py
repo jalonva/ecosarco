@@ -16,10 +16,13 @@ from reportlab.lib import colors
 # ==============================================================================
 st.set_page_config(page_title="EcoSarcopenia Pro v2.0", layout="centered")
 
-st.title("🩺 EcoSarcopenia Pro - Valoración Nutricional")
-st.markdown("Herramienta diagnóstica ecográfica con análisis multimodal e interpretación clínica derivada.")
-
-st.markdown("---")
+# Función para reiniciar los datos de la sesión y comenzar nuevo paciente
+def resetear_paciente():
+    st.session_state.informe = {}
+    st.session_state.hist_data = {}
+    st.session_state.imagenes_roi = {}
+    st.session_state.imagenes_hist_indiv = {}
+    st.rerun()
 
 # Estado de la sesión para persistencia de datos
 if "informe" not in st.session_state:
@@ -30,6 +33,19 @@ if "imagenes_roi" not in st.session_state:
     st.session_state.imagenes_roi = {}
 if "imagenes_hist_indiv" not in st.session_state:
     st.session_state.imagenes_hist_indiv = {}
+
+# Encabezado con Botón de Reseteo Superior
+col_titulo, col_reset = st.columns([3, 1])
+with col_titulo:
+    st.title("🩺 EcoSarcopenia Pro")
+with col_reset:
+    st.write("")  # Ajuste de espacio vertical
+    if st.button("🔄 Nuevo Paciente", help="Borra las mediciones guardadas y reinicia la aplicación"):
+        resetear_paciente()
+
+st.markdown("Herramienta diagnóstica ecográfica con análisis multimodal e interpretación clínica derivada.")
+
+st.markdown("---")
 
 # ==============================================================================
 # 1. SELECTOR DE REGIÓN ANATÓMICA
@@ -459,14 +475,21 @@ if st.session_state.informe:
         observaciones=obs_clinicas
     )
     
-    st.download_button(
-        label="📄 DESCARGAR INFORME CLÍNICO COMPLETO (PDF)",
-        data=pdf_bytes,
-        file_name=f"Informe_EcoSarcopenia_{nombre_pac.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.pdf",
-        mime="application/pdf",
-        type="primary",
-        use_container_width=True
-    )
+    col_pdf, col_nuevo = st.columns([2, 1])
+    
+    with col_pdf:
+        st.download_button(
+            label="📄 DESCARGAR INFORME CLÍNICO COMPLETO (PDF)",
+            data=pdf_bytes,
+            file_name=f"Informe_EcoSarcopenia_{nombre_pac.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.pdf",
+            mime="application/pdf",
+            type="primary",
+            use_container_width=True
+        )
+        
+    with col_nuevo:
+        if st.button("🔄 INICIAR NUEVO PACIENTE", use_container_width=True, help="Limpia los datos actuales para comenzar un nuevo estudio"):
+            resetear_paciente()
 
 else:
     st.info("💡 Realiza y guarda al menos una medición para habilitar el informe y la descarga en PDF.")
